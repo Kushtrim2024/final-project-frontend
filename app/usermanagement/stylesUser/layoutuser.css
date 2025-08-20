@@ -1,0 +1,69 @@
+.user-layout {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 20rem;
+  border: solid 1px #e2e8f0;
+}
+
+.user-header {
+  position: sticky;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  background-color: #a19f9f;
+  width: 100%;
+  z-index: 10;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.header-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  height: 100px;
+}
+
+.logo {
+  width: 80px;
+  height: 80px;
+  object-fit: contain;
+}
+
+.header-nav {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.btn-orange {
+  background-color: #f97316;
+  color: white;
+  padding: 8px 16px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.btn-orange:hover {
+  background-color: #ea580c;
+}
+
+.btn-red {
+  background-color: #ee5a1f;
+  color: white;
+  padding: 8px 16px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.btn-red:hover {
+  background-color: #ee5a1f;
+}
+
+.btn-outline {
+  border: 1px solid #d1d5db;
+  background-color: white;
+}

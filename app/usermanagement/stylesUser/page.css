@@ -1,0 +1,22 @@
+.dashboard-container {
+  padding: 16px;
+}
+
+.dashboard-title {
+  font-size: 24px;
+  font-weight: bold;
+  margin-bottom: 16px;
+}
+
+.dashboard-text {
+  color: #4a5568;
+}
+
+.media {
+  @media screen and (width <= 786px) {
+    article {
+      display: flex;
+      flex-direction: column;
+    }
+  }
+}
