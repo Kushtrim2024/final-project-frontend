@@ -1,0 +1,21 @@
+[
+  {
+    "id": "o1",
+    "customerName": "Max Mustermann",
+    "items": [
+      { "name": "Pizza Margherita", "qty": 1, "price": 8.5 },
+      { "name": "Coca Cola", "qty": 2, "price": 2.5 }
+    ],
+    "totalPrice": 13.5,
+    "status": "PENDING",
+    "createdAt": "2025-08-13T12:00:00Z"
+  },
+  {
+    "id": "o2",
+    "customerName": "Anna Schmidt",
+    "items": [{ "name": "Sushi Box", "qty": 1, "price": 15.0 }],
+    "totalPrice": 15.0,
+    "status": "PREPARING",
+    "createdAt": "2025-08-13T12:30:00Z"
+  }
+]

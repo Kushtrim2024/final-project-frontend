@@ -1,0 +1,10 @@
+{
+  "id": "rest1",
+  "name": "Pizza Express",
+  "description": "Beste Pizza in der Stadt.",
+  "logo": "/images/logo.png",
+  "cover": "/images/cover.jpg",
+  "deliveryFee": 2.5,
+  "minOrder": 10,
+  "category": "Italienisch"
+}

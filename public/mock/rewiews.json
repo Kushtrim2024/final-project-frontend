@@ -1,0 +1,18 @@
+[
+  {
+    "id": "r1",
+    "rating": 5,
+    "comment": "Sehr lecker! Schnell geliefert.",
+    "customerName": "Julia Meyer",
+    "createdAt": "2025-08-10T10:00:00Z",
+    "response": null
+  },
+  {
+    "id": "r2",
+    "rating": 3,
+    "comment": "War ok, aber etwas kalt.",
+    "customerName": "Tim Bauer",
+    "createdAt": "2025-08-09T09:15:00Z",
+    "response": "Danke für Ihr Feedback, wir bessern uns!"
+  }
+]

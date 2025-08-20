@@ -3,6 +3,7 @@
 import { usePathname } from "next/navigation";
 import Header from "./Header";
 import Footer from "./Footer";
+import { CartProvider } from "../contexte/CartContext"; // neu
 
 export default function RootLayoutWrapper({ children }) {
   const pathname = usePathname();
@@ -17,8 +18,11 @@ export default function RootLayoutWrapper({ children }) {
     "/usermanagement/permissions",
     "/restaurantmanagement",
     "/restaurantmanagement/restaurants",
-    "/restaurantmanagement/roles",
-    "/restaurantmanagement/permissions",
+    "/restaurantmanagement/restaurantpro",
+    "/restaurantmanagement/ordermanagement",
+    "/restaurantmanagement/customerfeedback",
+    "/restaurantmanagement/openinghours",
+    "/restaurantmanagement/pricingpromo",
     "/admin",
     "/admin/restaurants",
     "/admin/roles",
@@ -27,10 +31,10 @@ export default function RootLayoutWrapper({ children }) {
   const shouldHideLayout = hiddenPaths.includes(pathname);
 
   return (
-    <>
+    <CartProvider>
       {!shouldHideLayout && <Header />}
       {children}
       {!shouldHideLayout && <Footer />}
-    </>
+    </CartProvider>
   );
 }

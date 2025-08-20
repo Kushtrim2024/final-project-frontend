@@ -1,0 +1,8 @@
+{
+  "token": "dummy-token",
+  "owner": {
+    "id": "u1",
+    "name": "Restaurant Besitzer",
+    "restaurantId": "rest1"
+  }
+}
