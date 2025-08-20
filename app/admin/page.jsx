@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 export default function adminDashboard() {
   return (
     <div>
@@ -5,6 +6,14 @@ export default function adminDashboard() {
       <p className="text-gray-700">
         Welcome to the admin management system. Choose a section from the left.
       </p>
+=======
+import Dasboard from "./dashboard/page.jsx";
+
+export default function adminDashboard() {
+  return (
+    <div>
+      <Dasboard />
+>>>>>>> chnbranch
     </div>
   );
 }

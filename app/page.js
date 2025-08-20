@@ -3,7 +3,7 @@ import React from "react";
 
 export default function Home() {
   return (
-    <div className="h-396 mt-1 bg-cyan-700  bg-[url('/container-background.png')] bg-fixed bg-cover ">
+    <div className="h-396 bg-white bg-[url('/container-background.png')] bg-fixed bg-cover ">
       <div className="w-8/12 h-296  mx-auto bg-blue-300 opacity-70 text-gray-800 flex flex-col items-center pt-16 rounded-2xl">
         <h1>Welcome to Liefrik</h1>
         <p>Your favorite food ordering platform.</p>
