@@ -32,7 +32,7 @@ export default function FeedbackPage() {
   };
 
   return (
-    <div className="max-w-xl mx-auto p-4 text-gray-800">
+    <div className="max-w-xl bg-white mx-auto p-4 text-gray-800 border-1">
       <h2 className="text-xl font-bold mb-4">Feedback</h2>
       <p className="mb-4">
         We value your opinion! Please share your feedback with us.
@@ -77,7 +77,7 @@ export default function FeedbackPage() {
 
         <button
           type="submit"
-          className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+          className="bg-orange-500 text-white px-4 py-2 rounded hover:bg-orange-600 transition-colors"
         >
           Send Feedback
         </button>
