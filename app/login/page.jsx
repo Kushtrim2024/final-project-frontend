@@ -1,25 +1,114 @@
 "use client";
-import React from "react";
+import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
 
 function LoginPage() {
   const router = useRouter();
-  const [showRegisterModal, setShowRegisterModal] = useState(false);
 
-  const handleLogin = (e) => {
+  // Login state
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loginError, setLoginError] = useState(null);
+  const [loginLoading, setLoginLoading] = useState(false);
+
+  // Register modal state
+  const [showRegisterModal, setShowRegisterModal] = useState(false);
+  const [reg, setReg] = useState({
+    name: "",
+    email: "",
+    password: "",
+    passwordConfirm: "",
+    phone: "",
+    address: {
+      street: "",
+      city: "",
+      postalCode: "",
+      country: "",
+    },
+  });
+  const [registerError, setRegisterError] = useState(null);
+  const [registerSuccess, setRegisterSuccess] = useState(null);
+  const [registerLoading, setRegisterLoading] = useState(false);
+
+  const handleLogin = async (e) => {
     e.preventDefault();
-    router.push("/usermanagement");
+    setLoginError(null);
+    setLoginLoading(true);
+    try {
+      const res = await fetch("http://localhost:5517/user/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setLoginError(data.message || "Login failed");
+        return;
+      }
+      localStorage.setItem("token", data.token);
+      router.push("/usermanagement");
+    } catch (err) {
+      setLoginError("Sunucu hatası. Lütfen tekrar deneyin.");
+    } finally {
+      setLoginLoading(false);
+    }
   };
+
+  const handleRegister = async (e) => {
+    e.preventDefault();
+    setRegisterError(null);
+    setRegisterSuccess(null);
+
+    if (reg.password !== reg.passwordConfirm) {
+      setRegisterError("Şifreler uyuşmuyor.");
+      return;
+    }
+
+    setRegisterLoading(true);
+    try {
+      const res = await fetch("http://localhost:5517/user/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(reg),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setRegisterError(data.message || "Kayıt başarısız.");
+        return;
+      }
+
+      // Başarılı kayıt: modalı kapat, login formunu doldur
+      setRegisterSuccess("Kayıt başarılı! Giriş yapabilirsiniz.");
+      setEmail(reg.email);
+      setPassword(reg.password);
+      setTimeout(() => {
+        setShowRegisterModal(false);
+        setRegisterSuccess(null);
+      }, 800);
+
+      // İstersen otomatik login de yapabilirsin:
+      // await handleLogin(new Event("submit"));
+    } catch (err) {
+      setRegisterError("Sunucu hatası. Lütfen tekrar deneyin.");
+    } finally {
+      setRegisterLoading(false);
+    }
+  };
+
   // input class
   const inputClass =
     " pl-2 w-4/5  max-[400px]:w-3/4  h-8 rounded-md bg-white text-sm text-gray-800 shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition duration-200";
 
+  const labelClass =
+    "mt-2 text-sm font-medium text-gray-700 mb-2 flex items-center w-1/5 max-[500px]:w-2/5";
+
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gray-100 py-8 px-4 relative  ">
-      {/* Login ------------------------------------------------------------------------------------------------------------*/}
-      <section className="w-full max-w-sm mb-4 z-10 ">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-gray-100 py-8 px-4 relative">
+      {/* Login */}
+      <section className="w-full max-w-sm mb-4 z-10">
         <div className="flex flex-col items-center mb-6">
           <Link href="/">
             <img src="/logo.png" alt="Logo" className="w-20 h-20 mb-2" />
@@ -27,6 +116,7 @@ function LoginPage() {
           <h2 className="text-xl font-bold text-gray-800">User Login</h2>
           <p className="text-sm text-gray-500">Welcome back! Please log in.</p>
         </div>
+
         <form onSubmit={handleLogin} className="space-y-4">
           <div className="flex flex-row items-center">
             <label
@@ -40,6 +130,8 @@ function LoginPage() {
               type="email"
               placeholder="example@example.com"
               className={inputClass}
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
               required
             />
           </div>
@@ -55,14 +147,20 @@ function LoginPage() {
               type="password"
               placeholder="••••••••"
               className={inputClass}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
               required
             />
           </div>
+
+          {loginError && <p className="text-red-600 text-sm">{loginError}</p>}
+
           <button
             type="submit"
-            className="w-full py-2 px-4 bg-indigo-600 text-white font-semibold rounded-md hover:bg-indigo-700 transition"
+            disabled={loginLoading}
+            className="w-full py-2 px-4 bg-indigo-600 text-white font-semibold rounded-md hover:bg-indigo-700 transition disabled:opacity-60"
           >
-            Login
+            {loginLoading ? "Logging in..." : "Login"}
           </button>
         </form>
 
@@ -76,111 +174,177 @@ function LoginPage() {
         </div>
       </section>
 
-      {/* Register Modal --------------------------------------------------------------------------------------------------------*/}
+      {/* Register Modal */}
       {showRegisterModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900 bg-opacity-10  ">
-          <div className="bg-white rounded-lg shadow-xl p-6 w-lg relative  m-4 ">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900 bg-opacity-10">
+          <div className="bg-white rounded-lg shadow-xl p-6 w-lg relative m-4 max-w-xl ">
             <button
               onClick={() => setShowRegisterModal(false)}
-              className="absolute top-2 right-2 text-gray-500 hover:text-gray-700 text-3xl leading-none "
+              className="absolute top-2 right-2 text-gray-500 hover:text-gray-700 text-3xl leading-none"
               aria-label="Close"
             >
               &times;
             </button>
             <div className="flex flex-col items-center mb-4">
-              <h2 className="text-xl font-bold text-gray-800">Register Page</h2>
+              <h2 className="text-xl font-bold text-gray-800">Register</h2>
+              <p className="text-sm text-gray-500">
+                Please enter your information.
+              </p>
             </div>
-            <form className="space-y-4  ">
-              <div className="flex flex-row items-center ">
-                <label className=" mt-2 text-sm font-medium text-gray-700 mb-2 flex items-center w-1/5 max-[500px]:w-2/5">
-                  User Name
-                </label>
+
+            <form onSubmit={handleRegister} className="space-y-4">
+              <div className="flex flex-row items-center">
+                <label className={labelClass}>Full Name</label>
                 <input
                   type="text"
-                  placeholder="User Name"
+                  placeholder="user name"
                   className={inputClass}
-                  required
-                />
-              </div>
-              <div className="flex flex-row items-center">
-                <label className=" mt-2 text-sm font-medium text-gray-700 mb-2 flex items-center w-1/5  max-[500px]:w-2/5">
-                  Password
-                </label>
-                <input
-                  type="password"
-                  placeholder="••••••••"
-                  className={inputClass}
+                  value={reg.name}
+                  onChange={(e) =>
+                    setReg((s) => ({ ...s, name: e.target.value }))
+                  }
                   required
                 />
               </div>
 
               <div className="flex flex-row items-center">
-                <label className=" mt-2 text-sm font-medium text-gray-700 mb-2 flex items-center w-1/5 max-[500px]:w-2/5">
-                  Password
-                </label>
-                <input
-                  type="password"
-                  placeholder="••••••••"
-                  className={inputClass}
-                  required
-                />
-              </div>
-              <div className="flex flex-row items-center">
-                <label
-                  htmlFor="register-name"
-                  className="mt-2 text-sm font-medium text-gray-700 mb-2 flex items-center w-1/5  max-[500px]:w-2/5"
-                >
-                  Full Name
-                </label>
-                <input
-                  id="register-name"
-                  type="text"
-                  placeholder="name, surname"
-                  className={inputClass}
-                  required
-                />
-              </div>
-
-              <div className="flex flex-row items-center">
-                <label className="mt-2 text-sm font-medium text-gray-700 mb-2 flex items-center w-1/5  max-[500px]:w-2/5">
-                  Email
-                </label>
+                <label className={labelClass}>Email</label>
                 <input
                   type="email"
                   placeholder="example@example.com"
                   className={inputClass}
+                  value={reg.email}
+                  onChange={(e) =>
+                    setReg((s) => ({ ...s, email: e.target.value }))
+                  }
                   required
                 />
               </div>
+
               <div className="flex flex-row items-center">
-                <label className="mt-2 text-sm font-medium text-gray-700 mb-2 flex items-center w-1/5  max-[500px]:w-2/5">
-                  Phone
-                </label>
+                <label className={labelClass}>Password</label>
+                <input
+                  type="password"
+                  placeholder="••••••••"
+                  className={inputClass}
+                  value={reg.password}
+                  onChange={(e) =>
+                    setReg((s) => ({ ...s, password: e.target.value }))
+                  }
+                  required
+                />
+              </div>
+
+              <div className="flex flex-row items-center">
+                <label className={labelClass}>Confirm Password</label>
+                <input
+                  type="password"
+                  placeholder="••••••••"
+                  className={inputClass}
+                  value={reg.passwordConfirm}
+                  onChange={(e) =>
+                    setReg((s) => ({ ...s, passwordConfirm: e.target.value }))
+                  }
+                  required
+                />
+              </div>
+
+              <div className="flex flex-row items-center">
+                <label className={labelClass}>Phone</label>
                 <input
                   type="tel"
                   placeholder="+49 111 222 333"
                   className={inputClass}
+                  value={reg.phone}
+                  onChange={(e) =>
+                    setReg((s) => ({ ...s, phone: e.target.value }))
+                  }
+                  required
+                />
+              </div>
+
+              {/* Address */}
+              <div className="flex flex-row items-center">
+                <label className={labelClass}>Street</label>
+                <input
+                  type="text"
+                  placeholder="Musterstraße 3"
+                  className={inputClass}
+                  value={reg.address.street}
+                  onChange={(e) =>
+                    setReg((s) => ({
+                      ...s,
+                      address: { ...s.address, street: e.target.value },
+                    }))
+                  }
                   required
                 />
               </div>
 
               <div className="flex flex-row items-center">
-                <label className="mt-2 text-sm font-medium text-gray-700 mb-2 flex items-center w-1/5  max-[500px]:w-2/5">
-                  Address
-                </label>
+                <label className={labelClass}>City</label>
                 <input
                   type="text"
-                  placeholder="Nrw, Deutschland"
+                  placeholder="Berlin"
                   className={inputClass}
+                  value={reg.address.city}
+                  onChange={(e) =>
+                    setReg((s) => ({
+                      ...s,
+                      address: { ...s.address, city: e.target.value },
+                    }))
+                  }
                   required
                 />
               </div>
 
+              <div className="flex flex-row items-center">
+                <label className={labelClass}>Postal Code</label>
+                <input
+                  type="text"
+                  placeholder="10115"
+                  className={inputClass}
+                  value={reg.address.postalCode}
+                  onChange={(e) =>
+                    setReg((s) => ({
+                      ...s,
+                      address: { ...s.address, postalCode: e.target.value },
+                    }))
+                  }
+                  required
+                />
+              </div>
+
+              <div className="flex flex-row items-center">
+                <label className={labelClass}>Country</label>
+                <input
+                  type="text"
+                  placeholder="Deutschland"
+                  className={inputClass}
+                  value={reg.address.country}
+                  onChange={(e) =>
+                    setReg((s) => ({
+                      ...s,
+                      address: { ...s.address, country: e.target.value },
+                    }))
+                  }
+                  required
+                />
+              </div>
+
+              {registerError && (
+                <p className="text-red-600 text-sm">{registerError}</p>
+              )}
+              {registerSuccess && (
+                <p className="text-green-600 text-sm">{registerSuccess}</p>
+              )}
+
               <button
                 type="submit"
-                className="w-full py-2 px-4 bg-green-600 text-white font-semibold rounded-md hover:bg-green-700 transition"
+                disabled={registerLoading}
+                className="w-full py-2 px-4 bg-green-600 text-white font-semibold rounded-md hover:bg-green-700 transition disabled:opacity-60"
               >
-                Send
+                {registerLoading ? "Gönderiliyor..." : "Send"}
               </button>
             </form>
           </div>

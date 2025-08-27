@@ -1,4 +1,3 @@
-// app/admin/dashboard/page.jsx
 "use client";
 import {
   ResponsiveContainer,

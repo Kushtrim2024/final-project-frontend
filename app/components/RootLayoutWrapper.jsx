@@ -12,9 +12,7 @@ export default function RootLayoutWrapper({ children }) {
     "/management",
     "/partnerwithus",
     "/usermanagement",
-
     "/restaurantmanagement",
-
     "/admin",
     "/admin/dashboard",
     "/admin/usermanagement",
@@ -22,6 +20,9 @@ export default function RootLayoutWrapper({ children }) {
     "/admin/ordermanagement",
     "/admin/paymentscommissionreports",
     "/admin/supportfeedback",
+    "/admin/usermanagement/admin",
+    "/admin/usermanagement/kunden",
+    "/admin/usermanagement/restaurant",
     "/restaurantmanagement/restaurants",
     "/restaurantmanagement/pricingpromo",
     "/restaurantmanagement/customerfeedback",
