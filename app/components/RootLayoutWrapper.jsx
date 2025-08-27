@@ -29,6 +29,7 @@ export default function RootLayoutWrapper({ children }) {
     "/restaurantmanagement/ordermanagement",
     "/restaurantmanagement/openinghours",
     "/restaurantmanagement/restaurantpro",
+    "/restaurantmanagement/ownerprofile",
     "/usermanagement/profile",
     "/usermanagement/paymentmethods",
     "/usermanagement/address",

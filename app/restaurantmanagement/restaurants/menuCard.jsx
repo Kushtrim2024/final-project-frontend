@@ -11,7 +11,9 @@ export default function MenuCard({ item }) {
       <div className="p-4">
         <h2 className="text-xl font-semibold mb-2">{item.name}</h2>
         <p className="text-gray-600 mb-2">{item.description}</p>
-        <p className="text-green-600 font-bold">${item.price.toFixed(2)}</p>
+        <p className="text-green-600 font-bold">
+          ${Number(item.price).toFixed(2)}
+        </p>
       </div>
     </div>
   );

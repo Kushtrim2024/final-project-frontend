@@ -1,8 +1,21 @@
 // app/usermanagment/layout.js
+
+"use client";
+
 import Link from "next/link";
 import NavUser from "./componentsUser/NavUser";
+import { useRouter } from "next/navigation";
 
 export default function UserLayout({ children }) {
+  const router = useRouter();
+
+  const handleLogout = () => {
+    //Delete Token
+    localStorage.removeItem("token");
+    // to Homepage
+    router.push("/");
+  };
+
   return (
     <div className="sticky top-0 flex flex-col bg-gray-200 w-full shadow-md">
       <div className="flex flex-row items-center justify-around w-full h-30 px-4 shadow-md">
@@ -19,8 +32,11 @@ export default function UserLayout({ children }) {
 
         {/* Logout button right */}
         <nav>
-          <button className="bg-orange-500 text-white px-4 py-2 rounded-md hover:shadow-md hover:mb-2">
-            logout
+          <button
+            onClick={handleLogout}
+            className="bg-orange-500 text-white px-4 py-2 rounded-md hover:shadow-md hover:mb-2"
+          >
+            Logout
           </button>
         </nav>
       </div>
