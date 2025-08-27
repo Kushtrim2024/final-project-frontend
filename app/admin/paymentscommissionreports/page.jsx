@@ -1,203 +1,69 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 
-const restaurants = [
-  {
-    id: 1,
-    name: "Cihan Ünal",
-    restaurantName: "CHN Vegetarian Burger",
-    email: "cihan@chnburger.com",
-    website: "https://chnburger.com",
-    phone: "+49 123 456 789",
-    category: "Vegan Burger",
-    createdAt: "2024-06-10",
-    deliveryType: "Package + Onsite",
-    address: "Herne, Deutschland",
-    status: "pending",
-    totalSales: 1500,
-    commissionRate: 0.1,
-    paidCommission: 0,
-  },
-  {
-    id: 2,
-    name: "Randy Born",
-    restaurantName: "RDY Pizza",
-    email: "randy@rdypizza.com",
-    website: "https://rdypizza.com",
-    phone: "+49 987 654 321",
-    category: "Pizza",
-    createdAt: "2024-07-01",
-    deliveryType: "Package Only",
-    address: "Castrop-Rauxel, Deutschland",
-    status: "pending",
-    totalSales: 1500,
-    commissionRate: 0.1,
-    paidCommission: 0,
-  },
-  {
-    id: 3,
-    name: "Meli Kebriari",
-    restaurantName: "Meli Kebab",
-    email: "m@melikebab.com",
-    website: "https://melikebab.com",
-    phone: "+49 555 333 222",
-    category: "Kebap",
-    createdAt: "2024-05-20",
-    deliveryType: "Package + Onsite",
-    address: "Stuttgart, Deutschland",
-    status: "pending",
-    totalSales: 1500,
-    commissionRate: 0.1,
-    paidCommission: 0,
-  },
-  {
-    id: 4,
-    name: "Kushtrim Bilali",
-    restaurantName: "Ksh Burger",
-    email: "Ksh@kshburger.com",
-    website: "https://kshburger.com",
-    phone: "+49 222 111 000",
-    category: "Burger",
-    createdAt: "2024-06-05",
-    deliveryType: "Package Only",
-    address: "Leipzig, Deutschland",
-    status: "pending",
-    totalSales: 1500,
-    commissionRate: 0.1,
-    paidCommission: 0,
-  },
-  {
-    id: 5,
-    name: "Cihan Ünal",
-    restaurantName: "CHN Vegetarian Burger",
-    email: "cihan@chnburger.com",
-    website: "https://chnburger.com",
-    phone: "+49 123 456 789",
-    category: "Vegan Burger",
-    createdAt: "2024-06-10",
-    deliveryType: "Package + Onsite",
-    address: "Herne, Deutschland",
-    status: "pending",
-    totalSales: 1500,
-    commissionRate: 0.1,
-    paidCommission: 0,
-  },
-  {
-    id: 6,
-    name: "Randy Born",
-    restaurantName: "RDY Pizza",
-    email: "randy@rdypizza.com",
-    website: "https://rdypizza.com",
-    phone: "+49 987 654 321",
-    category: "Pizza",
-    createdAt: "2024-07-01",
-    deliveryType: "Package Only",
-    address: "Castrop-Rauxel, Deutschland",
-    status: "pending",
-    totalSales: 1500,
-    commissionRate: 0.1,
-    paidCommission: 0,
-  },
-  {
-    id: 7,
-    name: "Meli Kebriari",
-    restaurantName: "Meli Kebab",
-    email: "m@melikebab.com",
-    website: "https://melikebab.com",
-    phone: "+49 555 333 222",
-    category: "Kebap",
-    createdAt: "2024-05-20",
-    deliveryType: "Package + Onsite",
-    address: "Stuttgart, Deutschland",
-    status: "pending",
-    totalSales: 1500,
-    commissionRate: 0.1,
-    paidCommission: 0,
-  },
-  {
-    id: 8,
-    name: "Kushtrim Bilali",
-    restaurantName: "Ksh Burger",
-    email: "Ksh@kshburger.com",
-    website: "https://kshburger.com",
-    phone: "+49 222 111 000",
-    category: "Burger",
-    createdAt: "2024-06-05",
-    deliveryType: "Package Only",
-    address: "Leipzig, Deutschland",
-    status: "pending",
-    totalSales: 1500,
-    commissionRate: 0.1,
-    paidCommission: 0,
-  },
-  {
-    id: 9,
-    name: "Cihan Ünal",
-    restaurantName: "CHN Vegetarian Burger",
-    email: "cihan@chnburger.com",
-    website: "https://chnburger.com",
-    phone: "+49 123 456 789",
-    category: "Vegan Burger",
-    createdAt: "2024-06-10",
-    deliveryType: "Package + Onsite",
-    address: "Herne, Deutschland",
-    status: "pending",
-    totalSales: 1500,
-    commissionRate: 0.1,
-    paidCommission: 0,
-  },
-  {
-    id: 10,
-    name: "Randy Born",
-    restaurantName: "RDY Pizza",
-    email: "randy@rdypizza.com",
-    website: "https://rdypizza.com",
-    phone: "+49 987 654 321",
-    category: "Pizza",
-    createdAt: "2024-07-01",
-    deliveryType: "Package Only",
-    address: "Castrop-Rauxel, Deutschland",
-    status: "pending",
-    totalSales: 1500,
-    commissionRate: 0.1,
-    paidCommission: 0,
-  },
-  {
-    id: 11,
-    name: "Meli Kebriari",
-    restaurantName: "Meli Kebab",
-    email: "m@melikebab.com",
-    website: "https://melikebab.com",
-    phone: "+49 555 333 222",
-    category: "Kebap",
-    createdAt: "2024-05-20",
-    deliveryType: "Package + Onsite",
-    address: "Stuttgart, Deutschland",
-    status: "pending",
-    totalSales: 1500,
-    commissionRate: 0.1,
-    paidCommission: 0,
-  },
-  {
-    id: 12,
-    name: "Kushtrim Bilali",
-    restaurantName: "Ksh Burger",
-    email: "Ksh@kshburger.com",
-    website: "https://kshburger.com",
-    phone: "+49 222 111 000",
-    category: "Burger",
-    createdAt: "2024-06-05",
-    deliveryType: "Package Only",
-    address: "Leipzig, Deutschland",
-    status: "pending",
-    totalSales: 1500,
-    commissionRate: 0.1,
-    paidCommission: 0,
-  },
-];
+const BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:5517";
 
-// Dummy Data
+// Read token from localStorage (flexible for different key names)
+const readTokenFromStorage = () => {
+  if (typeof window === "undefined") return "";
+  const keys = ["adminToken", "token", "accessToken", "jwt", "authToken"];
+  for (const k of keys) {
+    const v = localStorage.getItem(k);
+    if (v && v.trim()) return v.trim();
+  }
+  return "";
+};
+
+// Safe text (select the meaningful field from the objects; otherwise short JSON)
+const safeText = (v) => {
+  if (v == null) return "";
+  const t = typeof v;
+  if (t === "string" || t === "number" || t === "boolean") return String(v);
+  if (t === "object") {
+    return (
+      v.restaurantName ||
+      v.name ||
+      v.fullName ||
+      v.email ||
+      v.title ||
+      v._id ||
+      JSON.stringify(v)
+    );
+  }
+  return String(v);
+};
+
+const formatAddress = (a) =>
+  typeof a === "string"
+    ? a
+    : [a?.street, a?.city, a?.postalCode, a?.country]
+        .filter(Boolean)
+        .join(", ");
+
+const pickArray = (obj) => {
+  if (Array.isArray(obj)) return obj;
+  if (obj && typeof obj === "object") {
+    const preferred = ["restaurants", "items", "data", "results", "list"];
+    for (const k of preferred) {
+      if (Array.isArray(obj?.[k])) return obj[k];
+      if (Array.isArray(obj?.[k]?.items)) return obj[k].items;
+    }
+    for (const v of Object.values(obj)) {
+      if (Array.isArray(v)) return v;
+      if (v && typeof v === "object" && Array.isArray(v.items)) return v.items;
+    }
+  }
+  return [];
+};
+
+// Backend status -> UI status
+const toUiStatus = (s) => {
+  const x = String(s || "").toLowerCase();
+  return x === "active" ? "approved" : "pending";
+};
+
+/* ============ Dummy Payments / Invoices  ============ */
 const payments = [
   {
     id: 1,
@@ -232,27 +98,127 @@ const invoices = [
   },
 ];
 
+/* ================= Page ================= */
+
 export default function AdminPanelPage() {
   const [selected, setSelected] = useState(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [tab, setTab] = useState("order");
 
-  const [data, setData] = useState(restaurants);
+  const [data, setData] = useState([]); // restaurants from the backend
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState("");
+  const [token, setToken] = useState("");
+  const [tokenChecked, setTokenChecked] = useState(false);
 
-  // --- RestaurantManagement style PAGINATION state ---
+  // --- PAGINATION state ---
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(6); // 6 / 12 / 24 / 48
+  const [pageSize, setPageSize] = useState(6);
   const clamp = (n, min, max) => Math.min(Math.max(n, min), max);
 
-  // Filtreli restoran list
-  const filteredRestaurants = data.filter(
-    (r) =>
-      r.restaurantName.toLowerCase().includes(search.toLowerCase()) &&
-      (statusFilter === "" || r.status === statusFilter)
-  );
+  // Read token and watch for changes
+  useEffect(() => {
+    const t = readTokenFromStorage();
+    if (t) setToken(t);
+    setTokenChecked(true);
+    const onStorageOrFocus = () => setToken(readTokenFromStorage());
+    window.addEventListener("storage", onStorageOrFocus);
+    window.addEventListener("focus", onStorageOrFocus);
+    document.addEventListener("visibilitychange", onStorageOrFocus);
+    return () => {
+      window.removeEventListener("storage", onStorageOrFocus);
+      window.removeEventListener("focus", onStorageOrFocus);
+      document.removeEventListener("visibilitychange", onStorageOrFocus);
+    };
+  }, []);
 
-  // Tab title
+  // Fetch restaurants
+  const fetchRestaurants = async (tk) => {
+    setLoading(true);
+    setErr("");
+    try {
+      const res = await fetch(`${BASE}/admin/restaurants`, {
+        headers: { Authorization: `Bearer ${tk}` },
+        cache: "no-store",
+      });
+      const text = await res.text();
+      let json;
+      try {
+        json = text ? JSON.parse(text) : [];
+      } catch {
+        json = [];
+      }
+      if (!res.ok)
+        throw new Error(json?.message || text || `HTTP ${res.status}`);
+
+      const list = pickArray(json);
+      const mapped = list.map((r, i) => ({
+        id: r?._id || r?.id || `row-${i}`,
+        name: r?.owner?.name || r?.ownerName || r?.ownerId || "-",
+        restaurantName: r?.restaurantName || r?.name || "-",
+        email: r?.email || r?.contactEmail || "-",
+        website: r?.website || "-",
+        phone: r?.phone || "-",
+        category: Array.isArray(r?.categories)
+          ? r.categories.join(", ")
+          : r?.category || "-",
+        createdAt: r?.createdAt
+          ? new Date(r.createdAt).toLocaleDateString("en-CA")
+          : "-",
+        deliveryType:
+          r?.deliveryAvailable && r?.takeawayAvailable
+            ? "Package + Onsite"
+            : r?.deliveryAvailable
+            ? "Package Only"
+            : r?.takeawayAvailable
+            ? "Onsite"
+            : "-",
+        address: formatAddress(r?.address) || "-",
+        status: toUiStatus(r?.status),
+        // Placeholder in commission (backend does not provide these fields)
+        totalSales: 0,
+        commissionRate: 0,
+        paidCommission: 0,
+      }));
+
+      setData(mapped);
+    } catch (e) {
+      setErr(e.message || "Restaurants could not be loaded");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // If the token is ready, withdraw it.
+  useEffect(() => {
+    if (!tokenChecked) return;
+    if (!token) {
+      setLoading(false);
+      setErr("Error: Login (token) not found. Please log in as admin.");
+      return;
+    }
+    fetchRestaurants(token);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tokenChecked, token]);
+
+  // Filtered restaurant list (used in ORDER tab)
+  const filteredRestaurants = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return data.filter((r) => {
+      const matchesSearch =
+        !q ||
+        safeText(r.restaurantName).toLowerCase().includes(q) ||
+        safeText(r.name).toLowerCase().includes(q) ||
+        safeText(r.email).toLowerCase().includes(q) ||
+        safeText(r.phone).toLowerCase().includes(q) ||
+        safeText(r.address).toLowerCase().includes(q);
+      const matchesStatus = statusFilter === "" || r.status === statusFilter;
+      return matchesSearch && matchesStatus;
+    });
+  }, [data, search, statusFilter]);
+
+  // Tab headers
   const tabs = [
     { key: "order", label: "Order Management" },
     { key: "commission", label: "Commission Tracking" },
@@ -261,8 +227,8 @@ export default function AdminPanelPage() {
     { key: "history", label: "Payment History" },
   ];
 
-  // --- Generate headers and rows based on Tab A ---
-  const { headers, rows } = React.useMemo(() => {
+  // Generate headers & rows based on active tab
+  const { headers, rows } = useMemo(() => {
     if (tab === "order") {
       return {
         headers: [
@@ -275,11 +241,11 @@ export default function AdminPanelPage() {
           "Actions",
         ],
         rows: filteredRestaurants.map((res) => [
-          res.id,
-          res.restaurantName,
-          res.name,
-          res.phone,
-          res.deliveryType,
+          safeText(res.id),
+          safeText(res.restaurantName),
+          safeText(res.name),
+          safeText(res.phone),
+          safeText(res.deliveryType),
           <span
             key={`status-${res.id}`}
             className={`px-2 py-1 rounded text-xs font-medium uppercase ${
@@ -288,7 +254,7 @@ export default function AdminPanelPage() {
                 : "bg-green-200 text-green-800"
             }`}
           >
-            {res.status}
+            {safeText(res.status)}
           </span>,
           <button
             key={`btn-${res.id}`}
@@ -312,13 +278,14 @@ export default function AdminPanelPage() {
           "Actions",
         ],
         rows: data.map((res) => {
-          const commission = res.totalSales * res.commissionRate;
+          const commission =
+            Number(res.totalSales || 0) * Number(res.commissionRate || 0);
           return [
-            res.restaurantName,
-            `₺${res.totalSales}`,
-            `${(res.commissionRate * 100).toFixed(0)}%`,
-            `₺${commission}`,
-            `₺${res.paidCommission}`,
+            safeText(res.restaurantName),
+            `€${Number(res.totalSales || 0)}`,
+            `${Math.round(Number(res.commissionRate || 0) * 100)}%`,
+            `€${commission}`,
+            `€${Number(res.paidCommission || 0)}`,
             <button
               key={`mark-${res.id}`}
               className="text-blue-600 hover:underline"
@@ -335,10 +302,10 @@ export default function AdminPanelPage() {
       return {
         headers: ["Restaurant", "Amount", "Method", "Date"],
         rows: payments.map((p) => [
-          p.restaurant,
-          `₺${p.amount}`,
-          p.method,
-          p.date,
+          safeText(p.restaurant),
+          `€${p.amount}`,
+          safeText(p.method),
+          safeText(p.date),
         ]),
       };
     }
@@ -347,11 +314,11 @@ export default function AdminPanelPage() {
       return {
         headers: ["Invoice #", "Restaurant", "Amount", "Date", "Status"],
         rows: invoices.map((inv) => [
-          inv.id,
-          inv.restaurant,
-          `₺${inv.amount}`,
-          inv.date,
-          inv.status,
+          safeText(inv.id),
+          safeText(inv.restaurant),
+          `€${inv.amount}`,
+          safeText(inv.date),
+          safeText(inv.status),
         ]),
       };
     }
@@ -360,54 +327,54 @@ export default function AdminPanelPage() {
     return {
       headers: ["Restaurant", "Amount", "Method", "Date"],
       rows: payments.map((p) => [
-        p.restaurant,
-        `₺${p.amount}`,
-        p.method,
-        p.date,
+        safeText(p.restaurant),
+        `€${p.amount}`,
+        safeText(p.method),
+        safeText(p.date),
       ]),
     };
   }, [tab, filteredRestaurants, data, selected]);
 
-  // Total items and page count
+  // total and page
   const totalItems = rows.length;
   const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
 
-  // Prevent overflow (when data/rows/pageSize changes)
+  // Prevent overflow
   useEffect(() => {
     setPage((p) => clamp(p, 1, totalPages));
   }, [totalItems, pageSize]);
 
-  // Return to page 1 when tab, search or filter change
+  // Reset page to 1 when tab changes
   useEffect(() => {
     setPage(1);
-  }, [tab]);
+  }, [tab, search, statusFilter]);
 
-  const onSearchChange = (e) => {
-    setSearch(e.target.value);
-    setPage(1);
-  };
-
-  const onStatusChange = (e) => {
-    setStatusFilter(e.target.value);
-    setPage(1);
-  };
-
-  // Sliced rows (active sheet)
-  const pageRows = React.useMemo(() => {
+  // active page rows
+  const pageRows = useMemo(() => {
     const start = (page - 1) * pageSize;
     return rows.slice(start, start + pageSize);
   }, [rows, page, pageSize]);
 
-  // Actions
+  // Actions (commission dummy)
   const markAsPaid = (id) => {
     setData((prev) =>
       prev.map((res) =>
         res.id === id
-          ? { ...res, paidCommission: res.totalSales * res.commissionRate }
+          ? {
+              ...res,
+              paidCommission:
+                Number(res.totalSales || 0) * Number(res.commissionRate || 0),
+            }
           : res
       )
     );
   };
+
+  if (!tokenChecked) return <div className="p-6">Checking…</div>;
+  if (loading) return <div className="p-6">Loading…</div>;
+  if (err) return <div className="p-6 text-red-600">{err}</div>;
+
+  const selectedObj = data.find((r) => r.id === selected);
 
   return (
     <div className="p-6 text-gray-900">
@@ -430,7 +397,6 @@ export default function AdminPanelPage() {
         ))}
       </div>
 
-      {/* ORDER MANAGEMENT */}
       {tab === "order" && (
         <>
           <div className="mb-4 flex flex-wrap gap-4 items-center">
@@ -438,18 +404,25 @@ export default function AdminPanelPage() {
               type="text"
               placeholder="Search restaurant..."
               value={search}
-              onChange={onSearchChange}
+              onChange={(e) => setSearch(e.target.value)}
               className="border px-4 py-2 rounded w-full sm:w-64"
             />
             <select
               value={statusFilter}
-              onChange={onStatusChange}
+              onChange={(e) => setStatusFilter(e.target.value)}
               className="border px-4 py-2 rounded"
             >
               <option value="">All Status</option>
               <option value="pending">Pending</option>
               <option value="approved">Approved</option>
             </select>
+            <button
+              type="button"
+              onClick={() => fetchRestaurants(token)}
+              className="px-4 py-2 rounded bg-gray-200 hover:bg-gray-300"
+            >
+              Refresh
+            </button>
           </div>
 
           <Table headers={headers} rows={pageRows} />
@@ -463,56 +436,11 @@ export default function AdminPanelPage() {
             totalItems={totalItems}
           />
 
-          {selected && (
-            <DetailsCard restaurant={data.find((r) => r.id === selected)} />
-          )}
+          {selectedObj && <DetailsCard restaurant={selectedObj} />}
         </>
       )}
 
-      {/* COMMISSION TRACKING */}
-      {tab === "commission" && (
-        <>
-          <Table headers={headers} rows={pageRows} />
-          <PaginationControls
-            page={page}
-            setPage={setPage}
-            pageSize={pageSize}
-            setPageSize={setPageSize}
-            totalItems={totalItems}
-          />
-        </>
-      )}
-
-      {/* PAYMENT REPORTS */}
-      {tab === "payments" && (
-        <>
-          <Table headers={headers} rows={pageRows} />
-          <PaginationControls
-            page={page}
-            setPage={setPage}
-            pageSize={pageSize}
-            setPageSize={setPageSize}
-            totalItems={totalItems}
-          />
-        </>
-      )}
-
-      {/* INVOICE MANAGEMENT */}
-      {tab === "invoices" && (
-        <>
-          <Table headers={headers} rows={pageRows} />
-          <PaginationControls
-            page={page}
-            setPage={setPage}
-            pageSize={pageSize}
-            setPageSize={setPageSize}
-            totalItems={totalItems}
-          />
-        </>
-      )}
-
-      {/* PAYMENT HISTORY */}
-      {tab === "history" && (
+      {tab !== "order" && (
         <>
           <Table headers={headers} rows={pageRows} />
           <PaginationControls
@@ -528,7 +456,7 @@ export default function AdminPanelPage() {
   );
 }
 
-// Reusable Table Component
+/* ================= Reusable Table ================= */
 function Table({ headers, rows, emptyText = "No data." }) {
   return (
     <div className="relative rounded bg-white border border-gray-200">
@@ -558,7 +486,9 @@ function Table({ headers, rows, emptyText = "No data." }) {
                 <tr key={i} className="hover:bg-gray-50">
                   {row.map((cell, j) => (
                     <td key={j} className="px-4 py-2 border align-top">
-                      {cell}
+                      {typeof cell === "object" && !React.isValidElement(cell)
+                        ? safeText(cell)
+                        : cell}
                     </td>
                   ))}
                 </tr>
@@ -571,7 +501,7 @@ function Table({ headers, rows, emptyText = "No data." }) {
   );
 }
 
-// Pagination Controls
+/* ================= Pagination Controls ================= */
 function PaginationControls({
   page,
   setPage,
@@ -580,7 +510,6 @@ function PaginationControls({
   totalItems,
 }) {
   const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
-
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 p-3 border-t bg-white mt-4">
       <div className="text-sm text-gray-800">
@@ -649,34 +578,47 @@ function PaginationControls({
   );
 }
 
-// Restaurant Details Card
+/* ================= Details Card ================= */
 function DetailsCard({ restaurant }) {
   if (!restaurant) return null;
   return (
     <div className="bg-gray-100 p-4 rounded border text-sm mt-4">
       <h2 className="text-lg font-semibold mb-2">
-        {restaurant.restaurantName} Details
+        {safeText(restaurant.restaurantName)} Details
       </h2>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <strong>Email:</strong> {restaurant.email}
+          <strong>Owner:</strong> {safeText(restaurant.name)}
+        </div>
+        <div>
+          <strong>Email:</strong> {safeText(restaurant.email)}
         </div>
         <div>
           <strong>Website:</strong>{" "}
-          <a
-            href={restaurant.website}
-            className="text-blue-600 underline"
-            target="_blank"
-            rel="noreferrer"
-          >
-            Visit
-          </a>
+          {restaurant.website && restaurant.website !== "-" ? (
+            <a
+              href={restaurant.website}
+              className="text-blue-600 underline"
+              target="_blank"
+              rel="noreferrer"
+            >
+              Visit
+            </a>
+          ) : (
+            "-"
+          )}
         </div>
         <div>
-          <strong>Address:</strong> {restaurant.address}
+          <strong>Phone:</strong> {safeText(restaurant.phone)}
         </div>
         <div>
-          <strong>Created At:</strong> {restaurant.createdAt}
+          <strong>Address:</strong> {safeText(restaurant.address)}
+        </div>
+        <div>
+          <strong>Created At:</strong> {safeText(restaurant.createdAt)}
+        </div>
+        <div>
+          <strong>Status:</strong> {safeText(restaurant.status)}
         </div>
       </div>
     </div>

@@ -21,7 +21,10 @@ function NavAdmin() {
 
   const links = [
     { href: "/admin/dashboard", label: "Dashboard" },
-    { href: "/admin/restaurantmanagement", label: "Restaurant Management" },
+    {
+      href: "/admin/restaurantmanagement",
+      label: "Restaurant Management",
+    },
     { href: "/admin/usermanagement", label: "User Management" },
     { href: "/admin/ordermanagement", label: "Order Management" },
     {

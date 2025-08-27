@@ -6,38 +6,170 @@ import { useRouter } from "next/navigation";
 
 function PartnerPage() {
   const router = useRouter();
-  const [fileName, setFileName] = useState("");
-  const [showRegisterModal, setShowRegisterModal] = useState(false);
 
-  const handleFileChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      setFileName(file.name);
+  // -------------------- Login state --------------------
+  const [loginForm, setLoginForm] = useState({ email: "", password: "" });
+  const [loginLoading, setLoginLoading] = useState(false);
+  const [loginMsg, setLoginMsg] = useState("");
+
+  // -------------------- Register modal & form --------------------
+  const [showRegisterModal, setShowRegisterModal] = useState(false);
+  const [registerLoading, setRegisterLoading] = useState(false);
+  const [registerMsg, setRegisterMsg] = useState("");
+  const [fileName, setFileName] = useState("");
+
+  const [registerForm, setRegisterForm] = useState({
+    name: "", // Full name (owner)
+    email: "",
+    password: "",
+    confirmPassword: "",
+    phone: "",
+    website: "",
+    restaurantName: "",
+    addressStreet: "",
+    addressCity: "",
+    addressPostalCode: "",
+    addressCountry: "",
+    taxNumber: "",
+  });
+
+  // -------------------- UI helpers --------------------
+  const inputClass =
+    "pl-3 pr-3 py-2 w-4/5 max-[400px]:w-3/4 rounded-md border border-gray-200 bg-white text-gray-900 shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition";
+
+  // -------------------- Handlers --------------------
+  const handleLoginChange = (e) => {
+    const { name, value } = e.target;
+    setLoginForm((p) => ({ ...p, [name]: value }));
+  };
+
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setLoginMsg("");
+    setLoginLoading(true);
+    try {
+      const res = await fetch("http://localhost:5517/owner/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: loginForm.email,
+          password: loginForm.password,
+        }),
+      });
+      if (!res.ok) throw new Error(`Login failed (${res.status})`);
+      const data = await res.json();
+
+      const token = data?.token || data?.accessToken || data?.authToken || null;
+      if (token) {
+        localStorage.setItem("token", token);
+        localStorage.setItem("role", "restaurant");
+      }
+      setLoginMsg("Logged in successfully.");
+      router.push("/restaurantmanagement");
+    } catch (err) {
+      setLoginMsg(err.message || "Could not log in.");
+    } finally {
+      setLoginLoading(false);
     }
   };
 
-  const handleLogin = (e) => {
-    e.preventDefault();
-    router.push("/restaurantmanagement");
+  const handleRegisterChange = (e) => {
+    const { name, value } = e.target;
+    setRegisterForm((p) => ({ ...p, [name]: value }));
   };
 
-  // input class
-  const inputClass =
-    " pl-2 w-4/5 max-[400px]:w-3/4  rounded-md border border-gray-200 bg-white text-gray-800 shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition duration-200";
+  const handleFileChange = (e) => {
+    const file = e.target.files?.[0];
+    setFileName(file ? file.name : "");
+  };
+
+  const handleRegister = async (e) => {
+    e.preventDefault();
+    setRegisterMsg("");
+
+    if (registerForm.password !== registerForm.confirmPassword) {
+      setRegisterMsg("Passwords do not match.");
+      return;
+    }
+
+    const required = [
+      "name",
+      "email",
+      "password",
+      "phone",
+      "restaurantName",
+      "addressStreet",
+      "addressCity",
+      "addressPostalCode",
+      "addressCountry",
+      "taxNumber",
+    ];
+    for (const key of required) {
+      if (!registerForm[key]) {
+        setRegisterMsg("Please fill in all required fields.");
+        return;
+      }
+    }
+
+    setRegisterLoading(true);
+    try {
+      const payload = {
+        name: registerForm.name,
+        email: registerForm.email,
+        password: registerForm.password,
+        phone: registerForm.phone,
+        address: {
+          street: registerForm.addressStreet,
+          city: registerForm.addressCity,
+          postalCode: registerForm.addressPostalCode,
+          country: registerForm.addressCountry,
+        },
+        restaurantName: registerForm.restaurantName,
+        taxNumber: registerForm.taxNumber,
+        document: fileName || "document.pdf",
+        website: registerForm.website || "",
+      };
+
+      const res = await fetch("http://localhost:5517/owner/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) throw new Error(`Register failed (${res.status})`);
+
+      setRegisterMsg("Registered successfully. You can now log in.");
+
+      setTimeout(() => {
+        setShowRegisterModal(false);
+        setRegisterMsg("");
+      }, 1000);
+    } catch (err) {
+      setRegisterMsg(err.message || "Could not register.");
+    } finally {
+      setRegisterLoading(false);
+    }
+  };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gray-100 py-8 px-4 relative ">
-      {/* Login ------------------------------------------------------------------------------------------------------------*/}
-      <section className="w-full max-w-sm mb-4 z-10 ">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-gray-100 py-8 px-4 relative">
+      {/* Login */}
+      <section className="w-full max-w-sm mb-4 z-10">
         <div className="flex flex-col items-center mb-6">
           <Link href="/">
             <img src="/logo.png" alt="Logo" className="w-20 h-20 mb-2" />
           </Link>
-          <h2 className="text-xl font-bold text-gray-800">Partner Login</h2>
-          <p className="text-sm text-gray-500">
+          <h2 className="text-xl font-bold text-gray-900">Partner Login</h2>
+          <p className="text-sm text-gray-600">
             Log in to manage your partnership
           </p>
         </div>
+
+        {loginMsg && (
+          <div className="mb-3 text-sm p-2 rounded bg-white border border-gray-200 text-gray-900">
+            {loginMsg}
+          </div>
+        )}
+
         <form onSubmit={handleLogin} className="space-y-4">
           <div className="flex flex-row items-center">
             <label
@@ -48,12 +180,17 @@ function PartnerPage() {
             </label>
             <input
               id="login-email"
+              name="email"
               type="email"
+              value={loginForm.email}
+              onChange={handleLoginChange}
               placeholder="example@example.com"
               className={inputClass}
               required
+              autoComplete="email"
             />
           </div>
+
           <div className="flex flex-row items-center">
             <label
               htmlFor="login-password"
@@ -63,17 +200,23 @@ function PartnerPage() {
             </label>
             <input
               id="login-password"
+              name="password"
               type="password"
+              value={loginForm.password}
+              onChange={handleLoginChange}
               placeholder="••••••••"
               className={inputClass}
               required
+              autoComplete="current-password"
             />
           </div>
+
           <button
             type="submit"
-            className="w-full py-2 px-4 bg-indigo-600 text-white font-semibold rounded-md hover:bg-indigo-700 transition"
+            disabled={loginLoading}
+            className="w-full py-2 px-4 bg-indigo-600 text-white font-semibold rounded-md hover:bg-indigo-700 transition disabled:opacity-60"
           >
-            Login
+            {loginLoading ? "Signing in…" : "Login"}
           </button>
         </form>
 
@@ -82,174 +225,262 @@ function PartnerPage() {
             onClick={() => setShowRegisterModal(true)}
             className="text-sm text-indigo-600 hover:underline"
           >
-            Don't have an account? Register as Partner
+            Don’t have an account? Register as Partner
           </button>
         </div>
       </section>
 
-      {/* Register Modal --------------------------------------------------------------------------------------------------------*/}
+      {/* Register Modal */}
       {showRegisterModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900 bg-opacity-10 ">
-          <div className="bg-white rounded-lg shadow-xl p-4 w-2xl relative m-4  max-[700px]:text-[14px] ">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/10">
+          <div className="bg-white rounded-lg shadow-xl p-4 w-[48rem] max-w-[95vw] relative m-4">
             <button
               onClick={() => setShowRegisterModal(false)}
-              className="absolute top-2 right-2 text-gray-500 hover:text-gray-700 text-3xl leading-none"
+              className="absolute top-2 right-3 text-gray-500 hover:text-gray-700 text-3xl leading-none"
               aria-label="Close"
             >
               &times;
             </button>
-            <div className="flex flex-col items-center mb-4 max-[700px]:m-0 ">
-              <h2 className="text-xl font-bold text-gray-800">
+
+            <div className="flex flex-col items-center mb-4">
+              <h2 className="text-xl font-bold text-gray-900">
                 Become a Partner
               </h2>
-              <p className="text-sm text-gray-500 text-center">
-                Register and upload your business documents
+              <p className="text-sm text-gray-600 text-center">
+                Register and upload your business details
               </p>
             </div>
-            <form className="space-y-4 ">
-              <div className="flex flex-row items-center max-[700px]:m-0">
-                <label className=" mt-2 text-sm font-medium text-gray-700 mb-2 flex items-center w-1/5 max-[700px]:w-2/5 ">
-                  User Name
-                </label>
-                <input
-                  type="text"
-                  placeholder="User Name"
-                  className={inputClass}
-                  required
-                />
+
+            {registerMsg && (
+              <div className="mb-3 text-sm p-2 rounded bg-gray-50 border border-gray-200 text-gray-900">
+                {registerMsg}
               </div>
-              <div className="flex flex-row items-center max-[700px]:m-0">
-                <label className=" mt-2 text-sm font-medium text-gray-700 mb-2 flex items-center w-1/5 max-[700px]:w-2/5 ">
-                  Password
-                </label>
-                <input
-                  type="password"
-                  placeholder="••••••••"
-                  className={inputClass}
-                  required
-                />
+            )}
+
+            <form className="space-y-4" onSubmit={handleRegister}>
+              {/* Row: Name, Email */}
+              <div className="flex gap-3 max-[700px]:flex-col">
+                <div className="flex items-center gap-2 flex-1">
+                  <label className="w-32 text-sm font-medium text-gray-700">
+                    Full Name
+                  </label>
+                  <input
+                    name="name"
+                    type="text"
+                    value={registerForm.name}
+                    onChange={handleRegisterChange}
+                    placeholder="Name Surname"
+                    className={inputClass + " w-full"}
+                    required
+                    autoComplete="name"
+                  />
+                </div>
+                <div className="flex items-center gap-2 flex-1">
+                  <label className="w-32 text-sm font-medium text-gray-700">
+                    Email
+                  </label>
+                  <input
+                    name="email"
+                    type="email"
+                    value={registerForm.email}
+                    onChange={handleRegisterChange}
+                    placeholder="example@example.com"
+                    className={inputClass + " w-full"}
+                    required
+                    autoComplete="email"
+                  />
+                </div>
               </div>
 
-              <div className="flex flex-row items-center max-[700px]:m-0">
-                <label className=" mt-2 text-sm font-medium text-gray-700 mb-2 flex items-center w-1/5 max-[700px]:w-2/5">
-                  Password
-                </label>
-                <input
-                  type="password"
-                  placeholder="••••••••"
-                  className={inputClass}
-                  required
-                />
-              </div>
-              <div className="flex flex-row items-center max-[700px]:m-0 ">
-                <label
-                  htmlFor="register-name"
-                  className="mt-2 text-sm font-medium text-gray-700 mb-2 flex items-center w-1/5 max-[700px]:w-2/5"
-                >
-                  Full Name
-                </label>
-                <input
-                  id="register-name"
-                  type="text"
-                  placeholder="name, surname"
-                  className={inputClass}
-                  required
-                />
-              </div>
-              <div className="flex flex-row items-center max-[700px]:m-0 ">
-                <label
-                  htmlFor="restaurant-name"
-                  className="mt-2 text-sm font-medium text-gray-700 mb-2 flex items-center w-1/5 max-[700px]:w-2/5 "
-                >
-                  Restaurant Name
-                </label>
-                <input
-                  id="restaurant-name"
-                  type="text"
-                  placeholder="Example Restaurant"
-                  className={inputClass}
-                  required
-                />
-              </div>
-              <div className="flex flex-row items-center max-[700px]:m-0 ">
-                <label className="mt-2 text-sm font-medium text-gray-700 mb-2 flex items-center w-1/5 max-[700px]:w-2/5 ">
-                  Email
-                </label>
-                <input
-                  type="email"
-                  placeholder="example@example.com"
-                  className={inputClass}
-                  required
-                />
-              </div>
-              <div className="flex flex-row items-center max-[700px]:m-0">
-                <label className="mt-2 text-sm font-medium text-gray-700 mb-2 flex items-center w-1/5  max-[700px]:w-2/5">
-                  Phone
-                </label>
-                <input
-                  type="tel"
-                  placeholder="+49 111 222 333"
-                  className={inputClass}
-                  required
-                />
-              </div>
-              <div className="flex flex-row items-center max-[700px]:m-0">
-                <label className="mt-2 text-sm font-medium text-gray-700 mb-2 flex items-center w-1/5 max-[700px]:w-2/5">
-                  Website
-                </label>
-                <input
-                  type="url"
-                  placeholder="https://example.com"
-                  className={inputClass}
-                  required
-                />
+              {/* Row: Password, Confirm */}
+              <div className="flex gap-3 max-[700px]:flex-col">
+                <div className="flex items-center gap-2 flex-1">
+                  <label className="w-32 text-sm font-medium text-gray-700">
+                    Password
+                  </label>
+                  <input
+                    name="password"
+                    type="password"
+                    value={registerForm.password}
+                    onChange={handleRegisterChange}
+                    placeholder="••••••••"
+                    className={inputClass + " w-full"}
+                    required
+                    autoComplete="new-password"
+                  />
+                </div>
+                <div className="flex items-center gap-2 flex-1">
+                  <label className="w-32 text-sm font-medium text-gray-700">
+                    Confirm Password
+                  </label>
+                  <input
+                    name="confirmPassword"
+                    type="password"
+                    value={registerForm.confirmPassword}
+                    onChange={handleRegisterChange}
+                    placeholder="Repeat password"
+                    className={inputClass + " w-full"}
+                    required
+                    autoComplete="new-password"
+                  />
+                </div>
               </div>
 
-              <div className="flex flex-row items-center max-[700px]:m-0">
-                <label className="mt-2 text-sm font-medium text-gray-700 mb-2 flex items-center w-1/5  max-[700px]:w-2/5">
-                  Address
-                </label>
-                <input
-                  type="text"
-                  placeholder="Nrw, Deutschland"
-                  className={inputClass}
-                  required
-                />
+              {/* Row: Phone, Website */}
+              <div className="flex gap-3 max-[700px]:flex-col">
+                <div className="flex items-center gap-2 flex-1">
+                  <label className="w-32 text-sm font-medium text-gray-700">
+                    Phone
+                  </label>
+                  <input
+                    name="phone"
+                    type="tel"
+                    value={registerForm.phone}
+                    onChange={handleRegisterChange}
+                    placeholder="+49 111 222 333"
+                    className={inputClass + " w-full"}
+                    required
+                    autoComplete="tel"
+                  />
+                </div>
+                <div className="flex items-center gap-2 flex-1">
+                  <label className="w-32 text-sm font-medium text-gray-700">
+                    Website
+                  </label>
+                  <input
+                    name="website"
+                    type="url"
+                    value={registerForm.website}
+                    onChange={handleRegisterChange}
+                    placeholder="https://example.com"
+                    className={inputClass + " w-full"}
+                  />
+                </div>
               </div>
-              <div className="flex flex-row items-center max-[700px]:m-0">
-                <label className="mt-2 text-sm font-medium text-gray-700 mb-2 flex items-center w-1/5 max-[700px]:w-2/5 ">
-                  Tax Number
-                </label>
-                <input
-                  type="text"
-                  placeholder="1234567890"
-                  className={inputClass}
-                  required
-                />
+
+              {/* Row: Restaurant Name, Tax Number */}
+              <div className="flex gap-3 max-[700px]:flex-col">
+                <div className="flex items-center gap-2 flex-1">
+                  <label className="w-32 text-sm font-medium text-gray-700">
+                    Restaurant Name
+                  </label>
+                  <input
+                    name="restaurantName"
+                    type="text"
+                    value={registerForm.restaurantName}
+                    onChange={handleRegisterChange}
+                    placeholder="Example Restaurant"
+                    className={inputClass + " w-full"}
+                    required
+                  />
+                </div>
+                <div className="flex items-center gap-2 flex-1">
+                  <label className="w-32 text-sm font-medium text-gray-700">
+                    Tax Number
+                  </label>
+                  <input
+                    name="taxNumber"
+                    type="text"
+                    value={registerForm.taxNumber}
+                    onChange={handleRegisterChange}
+                    placeholder="123456789"
+                    className={inputClass + " w-full"}
+                    required
+                  />
+                </div>
               </div>
-              <div className="flex flex-row items-center w-full m-0 ">
-                <label className="text-align-left mt-2 text-sm font-medium text-gray-700 mb-2 flex items-center h-20 w-1/2 max-[700px]:text-[12px] ">
+
+              {/* Row: Address (Street, City) */}
+              <div className="flex gap-3 max-[700px]:flex-col">
+                <div className="flex items-center gap-2 flex-1">
+                  <label className="w-32 text-sm font-medium text-gray-700">
+                    Street
+                  </label>
+                  <input
+                    name="addressStreet"
+                    type="text"
+                    value={registerForm.addressStreet}
+                    onChange={handleRegisterChange}
+                    placeholder="Street and number"
+                    className={inputClass + " w-full"}
+                    required
+                  />
+                </div>
+                <div className="flex items-center gap-2 flex-1">
+                  <label className="w-32 text-sm font-medium text-gray-700">
+                    City
+                  </label>
+                  <input
+                    name="addressCity"
+                    type="text"
+                    value={registerForm.addressCity}
+                    onChange={handleRegisterChange}
+                    placeholder="Berlin"
+                    className={inputClass + " w-full"}
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* Row: Postal Code, Country */}
+              <div className="flex gap-3 max-[700px]:flex-col">
+                <div className="flex items-center gap-2 flex-1">
+                  <label className="w-32 text-sm font-medium text-gray-700">
+                    Postal Code
+                  </label>
+                  <input
+                    name="addressPostalCode"
+                    type="text"
+                    value={registerForm.addressPostalCode}
+                    onChange={handleRegisterChange}
+                    placeholder="10115"
+                    className={inputClass + " w-full"}
+                    required
+                  />
+                </div>
+                <div className="flex items-center gap-2 flex-1">
+                  <label className="w-32 text-sm font-medium text-gray-700">
+                    Country
+                  </label>
+                  <input
+                    name="addressCountry"
+                    type="text"
+                    value={registerForm.addressCountry}
+                    onChange={handleRegisterChange}
+                    placeholder="Deutschland"
+                    className={inputClass + " w-full"}
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* Row: Business Document */}
+              <div className="flex items-start gap-3 w-full">
+                <label className="w-48 text-sm font-medium text-gray-700">
                   Business Document <br /> (PDF, JPG, PNG) <br />
                   (tax certificate etc.)
                 </label>
-                <input
-                  type="file"
-                  accept=".pdf,.jpg,.jpeg,.png"
-                  onChange={handleFileChange}
-                  className=" pt-8 block w-1/2 h-25 text-sm text-gray-600 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 "
-                  required
-                />
-                {fileName && (
-                  <p className="text-sm text-gray-500 mt-1 w-1/2">
-                    Selected: {fileName}
-                  </p>
-                )}
+                <div className="flex-1">
+                  <input
+                    type="file"
+                    accept=".pdf,.jpg,.jpeg,.png"
+                    onChange={handleFileChange}
+                    className="block w-full text-sm text-gray-700 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
+                  />
+                  {fileName && (
+                    <p className="text-sm text-gray-600 mt-1">
+                      Selected: {fileName}
+                    </p>
+                  )}
+                </div>
               </div>
+
               <button
                 type="submit"
-                className="w-full py-2 px-4 bg-green-600 text-white font-semibold rounded-md hover:bg-green-700 transition"
+                disabled={registerLoading}
+                className="w-full py-2 px-4 bg-green-600 text-white font-semibold rounded-md hover:bg-green-700 transition disabled:opacity-60"
               >
-                Register as Partner
+                {registerLoading ? "Registering…" : "Register as Partner"}
               </button>
             </form>
           </div>

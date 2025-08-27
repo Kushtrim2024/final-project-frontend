@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, Fragment } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faEdit,
@@ -10,266 +10,483 @@ import {
   faGlobe,
   faPhone,
 } from "@fortawesome/free-solid-svg-icons";
-import React, { Fragment } from "react";
-
-const initialRestaurants = [
-  {
-    id: 1,
-    name: "Cihan Ünal",
-    restaurantName: "CHN Vegetarian Burger",
-    email: "cihan@chnburger.com",
-    website: "https://chnburger.com",
-    phone: "+49 123 456 789",
-    category: "Vegan Burger",
-    createdAt: "2024-06-10",
-    deliveryType: "Package + Onsite",
-    menuLink: "/uploads/chnburger-menu.pdf",
-    taxNumber: "1234567890",
-    openHour: "10:00",
-    closeHour: "22:00",
-    address: "Herne, Deutschland",
-    taxDocument: "/uploads/chnburger-steuer.pdf",
-    status: "pending",
-    logo: "/logo.png",
-    rateus: 4.5,
-  },
-  {
-    id: 2,
-    name: "Randy Born",
-    restaurantName: "RDY Pizza",
-    email: "randy@rdypizza.com",
-    website: "https://rdypizza.com",
-    phone: "+49 987 654 321",
-    category: "Pizza",
-    createdAt: "2024-07-01",
-    deliveryType: "Package Only",
-    menuLink: "/uploads/rdypizza-menu.pdf",
-    taxNumber: "1234567890",
-    openHour: "10:00",
-    closeHour: "22:00",
-    address: "Castrop-Rauxel, Deutschland",
-    taxDocument: "/uploads/rdypizza-steuer.pdf",
-    status: "pending",
-    logo: "/logo.png",
-    rateus: 4.5,
-  },
-  {
-    id: 3,
-    name: "Meli Kebriari",
-    restaurantName: "Meli Kebab",
-    email: "m@melikebab.com",
-    website: "https://melikebab.com",
-    phone: "+49 555 333 222",
-    category: "Kebap",
-    createdAt: "2024-05-20",
-    deliveryType: "Package + Onsite",
-    menuLink: "/uploads/melikebab-menu.pdf",
-    taxNumber: "1234567890",
-    openHour: "10:00",
-    closeHour: "22:00",
-    address: "Stuttgart, Deutschland",
-    taxDocument: "/uploads/melikebab-steuer.pdf",
-    status: "pending",
-    logo: "/logo.png",
-    rateus: 4.5,
-  },
-  {
-    id: 4,
-    name: "Kushtrim Bilali",
-    restaurantName: "Ksh Burger",
-    email: "Ksh@kshburger.com",
-    website: "https://kshburger.com",
-    phone: "+49 222 111 000",
-    category: "Burger",
-    createdAt: "2024-06-05",
-    deliveryType: "Package Only",
-    menuLink: "/uploads/kshburger-menu.pdf",
-    taxNumber: "1234567890",
-    openHour: "10:00",
-    closeHour: "22:00",
-    address: "Leipzig, Deutschland",
-    taxDocument: "/uploads/kshburger-steuer.pdf",
-    status: "pending",
-    logo: "/logo.png",
-    rateus: 4.5,
-  },
-  {
-    id: 5,
-    name: "Cihan Ünal",
-    restaurantName: "CHN Vegetarian Burger",
-    email: "cihan@chnburger.com",
-    website: "https://chnburger.com",
-    phone: "+49 123 456 789",
-    category: "Vegan Burger",
-    createdAt: "2024-06-10",
-    deliveryType: "Package + Onsite",
-    menuLink: "/uploads/chnburger-menu.pdf",
-    taxNumber: "1234567890",
-    openHour: "10:00",
-    closeHour: "22:00",
-    address: "Herne, Deutschland",
-    taxDocument: "/uploads/chnburger-steuer.pdf",
-    status: "pending",
-    logo: "/logo.png",
-    rateus: 4.5,
-  },
-  {
-    id: 6,
-    name: "Randy Born",
-    restaurantName: "RDY Pizza",
-    email: "randy@rdypizza.com",
-    website: "https://rdypizza.com",
-    phone: "+49 987 654 321",
-    category: "Pizza",
-    createdAt: "2024-07-01",
-    deliveryType: "Package Only",
-    menuLink: "/uploads/rdypizza-menu.pdf",
-    taxNumber: "1234567890",
-    openHour: "10:00",
-    closeHour: "22:00",
-    address: "Castrop-Rauxel, Deutschland",
-    taxDocument: "/uploads/rdypizza-steuer.pdf",
-    status: "pending",
-    logo: "/logo.png",
-    rateus: 4.5,
-  },
-  {
-    id: 7,
-    name: "Meli Kebriari",
-    restaurantName: "Meli Kebab",
-    email: "m@melikebab.com",
-    website: "https://melikebab.com",
-    phone: "+49 555 333 222",
-    category: "Kebap",
-    createdAt: "2024-05-20",
-    deliveryType: "Package + Onsite",
-    menuLink: "/uploads/melikebab-menu.pdf",
-    taxNumber: "1234567890",
-    openHour: "10:00",
-    closeHour: "22:00",
-    address: "Stuttgart, Deutschland",
-    taxDocument: "/uploads/melikebab-steuer.pdf",
-    status: "pending",
-    logo: "/logo.png",
-    rateus: 4.5,
-  },
-  {
-    id: 8,
-    name: "Kushtrim Bilali",
-    restaurantName: "Ksh Burger",
-    email: "Ksh@kshburger.com",
-    website: "https://kshburger.com",
-    phone: "+49 222 111 000",
-    category: "Burger",
-    createdAt: "2024-06-05",
-    deliveryType: "Package Only",
-    menuLink: "/uploads/kshburger-menu.pdf",
-    taxNumber: "1234567890",
-    openHour: "10:00",
-    closeHour: "22:00",
-    address: "Leipzig, Deutschland",
-    taxDocument: "/uploads/kshburger-steuer.pdf",
-    status: "pending",
-    logo: "/logo.png",
-    rateus: 4.5,
-  },
-];
 
 export default function RestaurantManagement() {
-  const [restaurants, setRestaurants] = useState(initialRestaurants);
+  // DATA
+  const [restaurants, setRestaurants] = useState([]);
+
+  // UI
   const [expandedRow, setExpandedRow] = useState(null);
   const [editingRestaurant, setEditingRestaurant] = useState(null);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [activeStates, setActiveStates] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState("");
 
-  // PAGINATION STATES
+  // SEARCH
+  const [pendingQuery, setPendingQuery] = useState("");
+  const [activeQuery, setActiveQuery] = useState("");
+
+  // PAGINATION
   const [pendingPage, setPendingPage] = useState(1);
-  const [approvedPage, setApprovedPage] = useState(1);
+  const [activePage, setActivePage] = useState(1);
   const [pendingPageSize, setPendingPageSize] = useState(5);
-  const [approvedPageSize, setApprovedPageSize] = useState(5);
+  const [activePageSize, setActivePageSize] = useState(5);
 
+  // AUTH
+  const [token, setToken] = useState("");
+  const [tokenChecked, setTokenChecked] = useState(false);
+
+  const BASE = process.env.NEXT_PUBLIC_API_BASE_REST || "http://localhost:5517";
+
+  // ---- helpers
+  const readTokenFromStorage = () => {
+    if (typeof window === "undefined") return "";
+    const keys = ["adminToken", "token", "accessToken", "jwt", "authToken"];
+    for (const k of keys) {
+      const v = localStorage.getItem(k);
+      if (v && v.trim()) return v.trim();
+    }
+    return "";
+  };
+
+  // address helpers
+  const ensureAddressObject = (a) => {
+    if (a && typeof a === "object") {
+      return {
+        street: a.street || "",
+        city: a.city || "",
+        postalCode: a.postalCode || "",
+        country: a.country || "",
+        full: a.full || "",
+      };
+    }
+    const s = typeof a === "string" ? a : "";
+    return { street: s, city: "", postalCode: "", country: "", full: s };
+  };
+
+  const handleEditAddressChange = (e) => {
+    const { name, value } = e.target; // name: street | city | postalCode | country
+    setEditingRestaurant((prev) => ({
+      ...prev,
+      address: { ...ensureAddressObject(prev?.address), [name]: value },
+    }));
+  };
+
+  const mapFromApi = (r, i) => {
+    const normalizeAddress = (a) => {
+      if (!a) return "-";
+      if (typeof a === "string") return a;
+      if (typeof a === "object") {
+        if (a.full && typeof a.full === "string") return a.full;
+        const parts = [a.street, a.city, a.postalCode, a.country]
+          .filter(Boolean)
+          .map(String);
+        return parts.length ? parts.join(", ") : "-";
+      }
+      return String(a);
+    };
+
+    const normalizeStatus = (s) => {
+      const val = (
+        typeof s === "string" ? s : String(s || "inactive")
+      ).toLowerCase();
+      return val === "active" || val === "inactive" ? val : "inactive";
+    };
+
+    return {
+      id: r?._id || r?.id || r?.restaurantId || String(i),
+      restaurantName: r?.restaurantName || r?.restaurant?.name || "-",
+      name: r?.name || r?.contactPerson || r?.ownerName || "-",
+      email: r?.email || r?.contactEmail || "-",
+      address: normalizeAddress(r?.address),
+      taxNumber: r?.taxNumber || r?.taxNo || "-",
+      status: normalizeStatus(r?.status),
+      website: r?.website || "-",
+      phone: r?.phone || r?.contactPhone || "-",
+      taxDocument: r?.taxDocument || r?.documents?.tax || "",
+      logo: r?.image || r?.logo || "",
+      description: r?.description || "",
+      restaurantId: r?.restaurantId || r?.restaurant?._id || "",
+    };
+  };
+
+  const pickFirstArray = (obj) => {
+    if (Array.isArray(obj)) return obj;
+    if (obj && typeof obj === "object") {
+      const preferred = ["restaurants", "items", "data", "results", "list"];
+      for (const k of preferred) {
+        if (Array.isArray(obj?.[k])) return obj[k];
+        if (Array.isArray(obj?.[k]?.items)) return obj[k].items;
+      }
+      for (const v of Object.values(obj)) {
+        if (Array.isArray(v)) return v;
+        if (v && typeof v === "object" && Array.isArray(v.items))
+          return v.items;
+      }
+    }
+    return [];
+  };
+
+  const fetchRestaurants = async (tk) => {
+    setLoading(true);
+    setErr("");
+    try {
+      const res = await fetch(`${BASE}/admin/restaurant-owners`, {
+        headers: { Authorization: `Bearer ${tk}` },
+        cache: "no-store",
+      });
+      const text = await res.text();
+      let data;
+      try {
+        data = text ? JSON.parse(text) : [];
+        console.log(data);
+      } catch {
+        data = [];
+      }
+      if (!res.ok)
+        throw new Error(data?.message || text || `HTTP ${res.status}`);
+      const list = pickFirstArray(data);
+      setRestaurants(list.map(mapFromApi));
+    } catch (e) {
+      setErr(e.message || "Liste alınamadı");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // token oku
+  useEffect(() => {
+    const t = readTokenFromStorage();
+    if (t) setToken(t);
+    setTokenChecked(true);
+    const onStorage = () => setToken(readTokenFromStorage());
+    const onFocus = onStorage;
+    window.addEventListener("storage", onStorage);
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onFocus);
+    return () => {
+      window.removeEventListener("storage", onStorage);
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onFocus);
+    };
+  }, []);
+
+  // Fetch the list when the token is ready
+  useEffect(() => {
+    if (!tokenChecked) return;
+    if (!token) {
+      setLoading(false);
+      setErr("Error: Login (token) not found. Please log in as admin.");
+      return;
+    }
+    fetchRestaurants(token);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tokenChecked, token]);
+
+  // ui helpers
   const clamp = (n, min, max) => Math.min(Math.max(n, min), max);
-
   const toggleRow = (id) => setExpandedRow(expandedRow === id ? null : id);
 
-  const approveRestaurant = (id) => {
+  // PAGINATION buttons: 1 … prev current next … last
+  const getPageButtons = (current, total) => {
+    if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+    const pages = new Set([
+      1,
+      total,
+      current,
+      current - 1,
+      current + 1,
+      current - 2,
+      current + 2,
+    ]);
+    const arr = [...pages]
+      .filter((n) => n >= 1 && n <= total)
+      .sort((a, b) => a - b);
+    const withDots = [];
+    for (let i = 0; i < arr.length; i++) {
+      withDots.push(arr[i]);
+      if (i < arr.length - 1 && arr[i + 1] - arr[i] > 1) withDots.push("…");
+    }
+    return withDots;
+  };
+
+  // --- ACTIONS (optimistic + rollback)
+  const approveRestaurant = async (id) => {
+    if (!token) return alert("Token yok");
+    const prevSnapshot = restaurants;
     setRestaurants((prev) =>
-      prev.map((r) => (r.id === id ? { ...r, status: "approved" } : r))
+      prev.map((r) => (r.id === id ? { ...r, status: "active" } : r))
     );
+    try {
+      const res = await fetch(`${BASE}/admin/restaurant-owners/${id}/status`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ status: "active" }),
+      });
+      if (!res.ok) throw new Error(`Approve failed: ${res.status}`);
+      const data = await res.json();
+      const updated = data.owner || data;
+      setRestaurants((prev) =>
+        prev.map((r) =>
+          r.id === id || r._id === id ? { ...r, ...mapFromApi(updated) } : r
+        )
+      );
+    } catch (e) {
+      setRestaurants(prevSnapshot);
+      alert(e.message);
+    }
   };
-  const rejectRestaurant = (id) => {
-    setRestaurants((prev) => prev.filter((r) => r.id !== id));
+
+  const setInactive = async (id) => {
+    if (!token) return alert("Token yok");
+    const prevSnapshot = restaurants;
+    setRestaurants((prev) =>
+      prev.map((r) => (r.id === id ? { ...r, status: "inactive" } : r))
+    );
+    try {
+      const res = await fetch(`${BASE}/admin/restaurant-owners/${id}/status`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ status: "inactive" }),
+      });
+      if (!res.ok) throw new Error(`Deactivate failed: ${res.status}`);
+      const data = await res.json();
+      const updated = data.owner || data;
+      setRestaurants((prev) =>
+        prev.map((r) =>
+          r.id === id || r._id === id ? { ...r, ...mapFromApi(updated) } : r
+        )
+      );
+    } catch (e) {
+      setRestaurants(prevSnapshot);
+      alert(e.message);
+    }
   };
-  const toggleActive = (id) => {
-    setActiveStates((prev) => ({ ...prev, [id]: !prev[id] }));
-  };
+
   const handleEditClick = (restaurant) => {
-    setEditingRestaurant(restaurant);
+    setEditingRestaurant({
+      ...restaurant,
+      address: ensureAddressObject(restaurant?.address),
+    });
     setShowEditModal(true);
   };
+
   const handleEditChange = (e) => {
     const { name, value } = e.target;
     setEditingRestaurant((prev) => ({ ...prev, [name]: value }));
   };
-  const handleEditSave = () => {
-    setRestaurants((prev) =>
-      prev.map((r) => (r.id === editingRestaurant.id ? editingRestaurant : r))
-    );
-    setShowEditModal(false);
+
+  const handleEditSave = async () => {
+    if (!token) return alert("Token yok");
+    try {
+      const id = editingRestaurant.id;
+
+      // --- MINI: Convert the address to the object the backend wants ---
+      const toAddrObj = (val) => {
+        if (val && typeof val === "object") {
+          return {
+            street: val.street || "",
+            city: val.city || "",
+            postalCode: val.postalCode || "",
+            country: val.country || "",
+            full: val.full || "",
+          };
+        }
+        const s = String(val || "").trim();
+        const parts = s
+          .split(",")
+          .map((x) => x.trim())
+          .filter(Boolean);
+        const obj = {
+          street: "",
+          city: "",
+          postalCode: "",
+          country: "",
+          full: s,
+        };
+        if (parts.length >= 4) {
+          obj.country = parts.pop();
+          obj.postalCode = parts.pop();
+          obj.city = parts.pop();
+          obj.street = parts.join(", ");
+        } else if (parts.length === 3) {
+          [obj.street, obj.city, obj.country] = parts;
+        } else if (parts.length === 2) {
+          [obj.street, obj.country] = parts;
+        } else if (parts.length === 1) {
+          obj.street = parts[0];
+        }
+        return obj;
+      };
+
+      const addr = toAddrObj(editingRestaurant.address);
+
+      // Minimum client-side validation (schema required)
+      if (!addr.street || !addr.city || !addr.postalCode || !addr.country) {
+        alert(
+          "Please fill in the address as 'Street, City, PostalCode, Country'."
+        );
+        return;
+      }
+
+      const payload = {
+        restaurantName: editingRestaurant.restaurantName,
+        name: editingRestaurant.name,
+        description: editingRestaurant.description || "",
+        address: addr, // <-- STRING not, OBJE
+        phone: editingRestaurant.phone,
+        email: editingRestaurant.email,
+        website: editingRestaurant.website,
+        image: editingRestaurant.logo,
+        taxNumber: editingRestaurant.taxNumber,
+        taxDocument: editingRestaurant.taxDocument,
+      };
+
+      const res = await fetch(`${BASE}/admin/restaurant-owners/${id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const t = await res.text();
+        throw new Error(`Update failed: ${res.status} ${t}`);
+      }
+
+      const updated = await res.json();
+      setRestaurants((prev) =>
+        prev.map((r) =>
+          r.id === id || r._id === id ? { ...r, ...mapFromApi(updated) } : r
+        )
+      );
+      setShowEditModal(false);
+    } catch (e) {
+      alert(e.message);
+    }
   };
-  const handleDelete = (id) => {
+
+  const handleDelete = async (id) => {
+    if (!token) return alert("Token yok");
+    if (!confirm("Bu restoranı silmek istiyor musun?")) return;
+    const prevSnapshot = restaurants;
     setRestaurants((prev) => prev.filter((r) => r.id !== id));
+    try {
+      const res = await fetch(`${BASE}/admin/restaurant-owners/${id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error(`Delete failed: ${res.status}`);
+    } catch (e) {
+      setRestaurants(prevSnapshot);
+      alert(e.message);
+    }
   };
 
-  const approvedRestaurants = restaurants.filter(
-    (r) => r.status === "approved"
-  );
-  const pendingRestaurants = restaurants.filter((r) => r.status === "pending");
+  // derived lists (we use the backend status as is)
+  const activeAll = restaurants.filter((r) => r.status === "active");
+  const pendingAll = restaurants.filter((r) => r.status === "inactive");
 
-  // TOTAL PAGES
+  // search filters
+  const matches = (r, q) => {
+    if (!q) return true;
+    const s = q.toLowerCase();
+    return [r.restaurantName, r.name, r.email, r.address, r.phone, r.taxNumber]
+      .filter(Boolean)
+      .some((v) => String(v).toLowerCase().includes(s));
+  };
+
+  const activeFiltered = activeAll.filter((r) => matches(r, activeQuery));
+  const pendingFiltered = pendingAll.filter((r) => matches(r, pendingQuery));
+
+  // pagination
   const pendingTotalPages = Math.max(
     1,
-    Math.ceil(pendingRestaurants.length / pendingPageSize)
+    Math.ceil(pendingFiltered.length / pendingPageSize)
   );
-  const approvedTotalPages = Math.max(
+  const activeTotalPages = Math.max(
     1,
-    Math.ceil(approvedRestaurants.length / approvedPageSize)
+    Math.ceil(activeFiltered.length / activePageSize)
   );
-
-  // CLAMP PAGES WHEN DATA OR PAGESIZE CHANGES
   useEffect(() => {
     setPendingPage((p) => clamp(p, 1, pendingTotalPages));
-  }, [pendingRestaurants.length, pendingPageSize]);
+  }, [pendingFiltered.length, pendingPageSize]);
   useEffect(() => {
-    setApprovedPage((p) => clamp(p, 1, approvedTotalPages));
-  }, [approvedRestaurants.length, approvedPageSize]);
-
-  // CLOSE EXPANDED ROW ON PAGE/PAGESIZE CHANGE
+    setActivePage((p) => clamp(p, 1, activeTotalPages));
+  }, [activeFiltered.length, activePageSize]);
   useEffect(() => {
     setExpandedRow(null);
-  }, [pendingPage, approvedPage, pendingPageSize, approvedPageSize]);
+  }, [
+    pendingPage,
+    activePage,
+    pendingPageSize,
+    activePageSize,
+    pendingQuery,
+    activeQuery,
+  ]);
 
-  // PAGINATED SLICES
   const paginate = (arr, page, perPage) =>
     arr.slice((page - 1) * perPage, page * perPage);
   const pendingPageItems = paginate(
-    pendingRestaurants,
+    pendingFiltered,
     pendingPage,
     pendingPageSize
   );
-  const approvedPageItems = paginate(
-    approvedRestaurants,
-    approvedPage,
-    approvedPageSize
-  );
+  const activePageItems = paginate(activeFiltered, activePage, activePageSize);
+
+  if (!tokenChecked) return <div className="p-4">Checking…</div>;
+  if (loading) return <div className="p-4">Loading…</div>;
+  if (err) return <div className="p-4 text-red-600">Error: {err}</div>;
 
   return (
     <div className="space-y-8">
+      {/* PENDING (Awaiting Approval) */}
       <h2 className="text-2xl font-bold text-orange-500 max-[1250px]:text-[12px]">
         Restaurants Awaiting Approval
       </h2>
 
-      {/* Pending Restaurant Table */}
+      {/* Search - Pending */}
+      <div className="flex justify-between items-center gap-3">
+        <div>
+          <input
+            value={pendingQuery}
+            onChange={(e) => {
+              setPendingQuery(e.target.value);
+              setPendingPage(1);
+            }}
+            placeholder="Search awaiting approval…"
+            className="w-full md:w-96 border rounded px-3 py-2 text-gray-600"
+            type="text"
+          />
+        </div>
+        <div>
+          <label className="text-sm text-gray-600 max-[750px]:hidden mr-1">
+            Rows:
+          </label>
+          <select
+            className="border rounded px-2 py-1 text-gray-600"
+            value={pendingPageSize}
+            onChange={(e) => {
+              setPendingPageSize(Number(e.target.value));
+              setPendingPage(1);
+            }}
+          >
+            {[6, 12, 24, 48].map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
       <div className="relative rounded bg-white shadow max-[1320px]:text-[12px] ">
         <div className="max-h-96 overflow-auto">
           <table className="min-w-[1000px] w-full table-fixed border-collapse">
@@ -290,7 +507,7 @@ export default function RestaurantManagement() {
               {pendingPageItems.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="p-6 text-center text-gray-600">
-                    No pending restaurants.
+                    No awaiting approval restaurants.
                   </td>
                 </tr>
               ) : (
@@ -316,27 +533,22 @@ export default function RestaurantManagement() {
                         {res.taxNumber}
                       </td>
                       <td className="border px-4 py-2 capitalize whitespace-nowrap">
-                        {res.status}
+                        {res.status /* 'inactive' */}
                       </td>
                       <td className="border px-4 py-2 flex justify-center gap-2 max-[1150px]:flex-col max-[1150px]:flex">
+                        {/* APPROVE -> active */}
                         <button
+                          type="button"
                           className="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600"
                           onClick={(e) => {
+                            e.preventDefault();
                             e.stopPropagation();
                             approveRestaurant(res.id);
                           }}
                         >
                           Approve
                         </button>
-                        <button
-                          className="bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            rejectRestaurant(res.id);
-                          }}
-                        >
-                          Reject
-                        </button>
+
                         <FontAwesomeIcon
                           icon={
                             expandedRow === res.id ? faChevronUp : faChevronDown
@@ -347,7 +559,6 @@ export default function RestaurantManagement() {
                     </tr>
                     {expandedRow === res.id && (
                       <tr className="bg-gray-50">
-                        {/* Pending tabloda 7 kolon var */}
                         <td colSpan={7} className="p-4 border-t">
                           <div className="flex gap-4">
                             <div className="text-sm text-gray-700 space-y-1">
@@ -390,36 +601,17 @@ export default function RestaurantManagement() {
           </table>
         </div>
 
-        {/* Pagination Controls - Pending */}
+        {/* Pagination - Pending */}
         <div className="flex flex-wrap items-center justify-between gap-3 p-3 border-t bg-white">
           <div className="text-sm text-gray-600">
             Page <span className="font-semibold">{pendingPage}</span>
-            &nbsp;/&nbsp;
-            {pendingTotalPages} &nbsp;•&nbsp;
-            <span className="font-semibold">{pendingRestaurants.length}</span>
+            &nbsp;/&nbsp;{Math.max(1, pendingTotalPages)} &nbsp;•&nbsp;
+            <span className="font-semibold">{pendingFiltered.length}</span>
             &nbsp;items
           </div>
-
           <div className="flex items-center gap-2  text-gray-800">
-            <label className="text-sm text-gray-600 max-[750px]:hidden">
-              Rows:
-            </label>
-            <select
-              className="border rounded px-2 py-1"
-              value={pendingPageSize}
-              onChange={(e) => {
-                setPendingPageSize(Number(e.target.value));
-                setPendingPage(1);
-              }}
-            >
-              {[6, 12, 24, 48].map((n) => (
-                <option key={n} value={n}>
-                  {n}
-                </option>
-              ))}
-            </select>
-
             <button
+              type="button"
               className="px-2 py-1 border rounded disabled:opacity-50"
               onClick={() => setPendingPage((p) => Math.max(1, p - 1))}
               disabled={pendingPage === 1}
@@ -428,30 +620,34 @@ export default function RestaurantManagement() {
             </button>
 
             <div className="flex items-center gap-1">
-              {Array.from({ length: pendingTotalPages }, (_, i) => i + 1).map(
-                (n) => (
+              {getPageButtons(pendingPage, pendingTotalPages).map((n, idx) =>
+                n === "…" ? (
+                  <span
+                    key={`pend-ellipsis-${idx}`}
+                    className="px-2 select-none"
+                  >
+                    …
+                  </span>
+                ) : (
                   <button
-                    key={n}
+                    key={`pend-${n}`}
+                    type="button"
                     aria-current={pendingPage === n ? "page" : undefined}
                     className={`px-3 py-1 border rounded ${
                       pendingPage === n
                         ? "bg-gray-800 text-white"
                         : "hover:bg-gray-100"
-                    } ${n !== 1 ? "max-[1150px]:hidden" : ""}`}
+                    }`}
                     onClick={() => setPendingPage(n)}
                   >
                     {n}
                   </button>
                 )
               )}
-              {pendingTotalPages > 1 && (
-                <span className="hidden max-[1150px]:inline-block px-2 select-none">
-                  …
-                </span>
-              )}
             </div>
 
             <button
+              type="button"
               className="px-2 py-1 border rounded disabled:opacity-50"
               onClick={() =>
                 setPendingPage((p) => Math.min(pendingTotalPages, p + 1))
@@ -464,11 +660,44 @@ export default function RestaurantManagement() {
         </div>
       </div>
 
-      {/* Approved Restaurant Table */}
+      {/* ACTIVE */}
       <div>
-        <h3 className="text-2xl font-bold text-orange-500 mb-4 max-[1250px]:text-[12px]">
+        <h3 className="text-2xl font-bold text-orange-500 mb-4 max-[1250px]:text-[12px] ">
           Active Partner Restaurants
         </h3>
+
+        {/* Search - Active */}
+        <div className="flex justify-between items-center gap-3 mb-2">
+          <input
+            value={activeQuery}
+            onChange={(e) => {
+              setActiveQuery(e.target.value);
+              setActivePage(1);
+            }}
+            placeholder="Search active restaurants…"
+            className="w-full md:w-96 border rounded px-3 py-2 text-gray-600"
+            type="text"
+          />
+          <div>
+            <label className="text-sm text-gray-800 max-[750px]:hidden mr-1">
+              Rows:
+            </label>
+            <select
+              className="border rounded px-2 py-1 text-gray-600"
+              value={activePageSize}
+              onChange={(e) => {
+                setActivePageSize(Number(e.target.value));
+                setActivePage(1);
+              }}
+            >
+              {[6, 12, 24, 48].map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
 
         <div className="relative rounded bg-white shadow max-[1250px]:text-[12px] border">
           <div className="max-h-96 overflow-auto">
@@ -481,21 +710,20 @@ export default function RestaurantManagement() {
                   <th className="px-4 py-4 border border-black">Address</th>
                   <th className="px-4 py-4 border border-black">Tax No</th>
                   <th className="px-4 py-4 border border-black">Status</th>
-                  <th className="px-4 py-4 border border-black">Status</th>
                   <th className="px-4 py-4 border border-black text-center">
                     Actions
                   </th>
                 </tr>
               </thead>
               <tbody>
-                {approvedPageItems.length === 0 ? (
+                {activePageItems.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="p-6 text-center text-gray-600">
-                      No approved restaurants.
+                    <td colSpan={7} className="p-6 text-center text-gray-600">
+                      No active restaurants.
                     </td>
                   </tr>
                 ) : (
-                  approvedPageItems.map((res) => (
+                  activePageItems.map((res) => (
                     <Fragment key={res.id}>
                       <tr
                         className="even:bg-gray-50 hover:bg-gray-100 text-gray-700 cursor-pointer"
@@ -517,40 +745,47 @@ export default function RestaurantManagement() {
                           {res.taxNumber}
                         </td>
                         <td className="border px-4 py-2 capitalize whitespace-nowrap">
-                          {res.status}
+                          {res.status /* 'active' */}
                         </td>
-                        <td className="border px-4 py-2 whitespace-nowrap">
-                          {activeStates[res.id] ? "Aktif" : "Pasif"}
-                        </td>
-                        <td className="border px-4 py-2 flex  flex-col justify-center gap-2  ">
+                        <td className="border px-4 py-2 flex flex-col justify-center gap-2">
                           <button
-                            onClick={() => handleEditClick(res)}
+                            type="button"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              handleEditClick(res);
+                            }}
                             className="text-blue-600 hover:underline"
                           >
                             <FontAwesomeIcon icon={faEdit} /> Edit
                           </button>
                           <button
-                            onClick={() => handleDelete(res.id)}
+                            type="button"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              handleDelete(res.id);
+                            }}
                             className="text-red-600 hover:underline"
                           >
                             <FontAwesomeIcon icon={faTrash} /> Delete
                           </button>
                           <button
-                            onClick={() => toggleActive(res.id)}
-                            className={`px-2 py-1 rounded ${
-                              activeStates[res.id]
-                                ? "bg-gray-300"
-                                : "bg-green-300"
-                            }`}
+                            type="button"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setInactive(res.id);
+                            }}
+                            className="px-2 py-1 rounded bg-gray-300 hover:bg-gray-400"
                           >
-                            {activeStates[res.id] ? "Passive" : "Active"}
+                            Inactive
                           </button>
                         </td>
                       </tr>
                       {expandedRow === res.id && (
                         <tr className="bg-gray-50">
-                          {/* Approved tabloda 8 kolon var */}
-                          <td colSpan={8} className="p-4 border-t">
+                          <td colSpan={7} className="p-4 border-t">
                             <div className="flex gap-4">
                               <div className="text-sm text-gray-700 space-y-1">
                                 <p>
@@ -592,75 +827,59 @@ export default function RestaurantManagement() {
             </table>
           </div>
 
-          {/* Pagination Controls - Approved */}
+          {/* Pagination - Active */}
           <div className="flex flex-wrap items-center justify-between gap-3 p-3 border-t bg-white">
             <div className="text-sm text-gray-800">
-              Page <span className="font-semibold">{approvedPage}</span>&nbsp;/
-              &nbsp;{approvedTotalPages}&nbsp;•&nbsp;
-              <span className="font-semibold">
-                {approvedRestaurants.length}
-              </span>
-              &nbsp;&nbsp;items
+              Page <span className="font-semibold">{activePage}</span>
+              &nbsp;/&nbsp;{Math.max(1, activeTotalPages)}&nbsp;•&nbsp;
+              <span className="font-semibold">{activeFiltered.length}</span>
+              &nbsp;items
             </div>
 
             <div className="flex items-center gap-2 text-gray-800">
-              <label className="text-sm text-gray-800 max-[750px]:hidden ">
-                Rows:
-              </label>
-              <select
-                className="border rounded px-2 py-1"
-                value={approvedPageSize}
-                onChange={(e) => {
-                  setApprovedPageSize(Number(e.target.value));
-                  setApprovedPage(1);
-                }}
-              >
-                {[6, 12, 24, 48].map((n) => (
-                  <option key={n} value={n}>
-                    {n}
-                  </option>
-                ))}
-              </select>
-
               <button
+                type="button"
                 className="px-2 py-1 border rounded disabled:opacity-50"
-                onClick={() => setApprovedPage((p) => Math.max(1, p - 1))}
-                disabled={approvedPage === 1}
+                onClick={() => setActivePage((p) => Math.max(1, p - 1))}
+                disabled={activePage === 1}
               >
                 Prev
               </button>
 
               <div className="flex items-center gap-1">
-                {Array.from(
-                  { length: approvedTotalPages },
-                  (_, i) => i + 1
-                ).map((n) => (
-                  <button
-                    key={n}
-                    aria-current={approvedPage === n ? "page" : undefined}
-                    className={`px-2 py-1 border rounded ${
-                      approvedPage === n
-                        ? "bg-gray-800 text-white"
-                        : "hover:bg-gray-100"
-                    } ${n !== 1 ? "max-[1150px]:hidden" : ""}`}
-                    onClick={() => setApprovedPage(n)}
-                  >
-                    {n}
-                  </button>
-                ))}
-                {pendingTotalPages > 1 && (
-                  <span className="hidden max-[1150px]:inline-block px-2 select-none">
-                    …
-                  </span>
+                {getPageButtons(activePage, activeTotalPages).map((n, idx) =>
+                  n === "…" ? (
+                    <span
+                      key={`appr-ellipsis-${idx}`}
+                      className="px-2 select-none"
+                    >
+                      …
+                    </span>
+                  ) : (
+                    <button
+                      key={`appr-${n}`}
+                      type="button"
+                      aria-current={activePage === n ? "page" : undefined}
+                      className={`px-2 py-1 border rounded ${
+                        activePage === n
+                          ? "bg-gray-800 text-white"
+                          : "hover:bg-gray-100"
+                      }`}
+                      onClick={() => setActivePage(n)}
+                    >
+                      {n}
+                    </button>
+                  )
                 )}
               </div>
 
               <button
+                type="button"
                 className="px-3 py-1 border rounded disabled:opacity-50"
                 onClick={() =>
-                  setApprovedPage((p) => Math.min(approvedTotalPages, p + 1))
+                  setActivePage((p) => Math.min(activeTotalPages, p + 1))
                 }
-                disabled={approvedPage === approvedTotalPages}
+                disabled={activePage === activeTotalPages}
               >
                 Next
               </button>
@@ -669,7 +888,7 @@ export default function RestaurantManagement() {
         </div>
       </div>
 
-      {/* Modal Edit Page */}
+      {/* Modal */}
       {showEditModal && (
         <div className="fixed inset-0 z-40 backdrop-blur-xs flex items-center justify-center">
           <div className="bg-white w-full max-w-4xl rounded-lg p-6 space-y-6 overflow-y-auto max-h-[90vh] relative">
@@ -680,7 +899,7 @@ export default function RestaurantManagement() {
               <input
                 type="text"
                 name="restaurantName"
-                value={editingRestaurant.restaurantName}
+                value={editingRestaurant?.restaurantName || ""}
                 onChange={handleEditChange}
                 className="border p-2 rounded"
                 placeholder="Restaurant Name"
@@ -688,7 +907,7 @@ export default function RestaurantManagement() {
               <input
                 type="text"
                 name="name"
-                value={editingRestaurant.name}
+                value={editingRestaurant?.name || ""}
                 onChange={handleEditChange}
                 className="border p-2 rounded"
                 placeholder="Owner Name"
@@ -696,23 +915,52 @@ export default function RestaurantManagement() {
               <input
                 type="email"
                 name="email"
-                value={editingRestaurant.email}
+                value={editingRestaurant?.email || ""}
                 onChange={handleEditChange}
                 className="border p-2 rounded"
                 placeholder="Email"
               />
+
+              {/* Address fields */}
               <input
                 type="text"
-                name="address"
-                value={editingRestaurant.address}
-                onChange={handleEditChange}
+                name="street"
+                value={ensureAddressObject(editingRestaurant?.address).street}
+                onChange={handleEditAddressChange}
                 className="border p-2 rounded"
-                placeholder="Address"
+                placeholder="Street"
               />
               <input
                 type="text"
+                name="city"
+                value={ensureAddressObject(editingRestaurant?.address).city}
+                onChange={handleEditAddressChange}
+                className="border p-2 rounded"
+                placeholder="City"
+              />
+              <input
+                type="text"
+                name="postalCode"
+                value={
+                  ensureAddressObject(editingRestaurant?.address).postalCode
+                }
+                onChange={handleEditAddressChange}
+                className="border p-2 rounded"
+                placeholder="Postal Code"
+              />
+              <input
+                type="text"
+                name="country"
+                value={ensureAddressObject(editingRestaurant?.address).country}
+                onChange={handleEditAddressChange}
+                className="border p-2 rounded"
+                placeholder="Country"
+              />
+
+              <input
+                type="text"
                 name="taxNumber"
-                value={editingRestaurant.taxNumber}
+                value={editingRestaurant?.taxNumber || ""}
                 onChange={handleEditChange}
                 className="border p-2 rounded"
                 placeholder="Tax Number"
@@ -720,7 +968,7 @@ export default function RestaurantManagement() {
               <input
                 type="text"
                 name="website"
-                value={editingRestaurant.website}
+                value={editingRestaurant?.website || ""}
                 onChange={handleEditChange}
                 className="border p-2 rounded"
                 placeholder="Website"
@@ -728,7 +976,7 @@ export default function RestaurantManagement() {
               <input
                 type="text"
                 name="phone"
-                value={editingRestaurant.phone}
+                value={editingRestaurant?.phone || ""}
                 onChange={handleEditChange}
                 className="border p-2 rounded"
                 placeholder="Phone"
@@ -736,7 +984,7 @@ export default function RestaurantManagement() {
               <input
                 type="text"
                 name="taxDocument"
-                value={editingRestaurant.taxDocument}
+                value={editingRestaurant?.taxDocument || ""}
                 onChange={handleEditChange}
                 className="border p-2 rounded"
                 placeholder="Tax Document Link"
@@ -744,12 +992,14 @@ export default function RestaurantManagement() {
             </div>
             <div className="flex justify-end gap-4">
               <button
+                type="button"
                 className="bg-gray-500 text-white px-4 py-2 rounded"
                 onClick={() => setShowEditModal(false)}
               >
                 Cancel
               </button>
               <button
+                type="button"
                 className="bg-blue-600 text-white px-4 py-2 rounded"
                 onClick={handleEditSave}
               >

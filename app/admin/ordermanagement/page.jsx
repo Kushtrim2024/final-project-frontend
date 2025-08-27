@@ -1,34 +1,285 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import CSVExportButton from "../componentsadmin/CSVExportButton.jsx";
 
-export default function OrderManagementPage() {
-  const [orders, setOrders] = useState([
-    {
-      id: "ORD001",
-      customer: "Cihan Ünal",
-      restaurant: "Burger King",
-      date: "2025-08-12",
-      status: "Getting Ready",
-    },
-    {
-      id: "ORD002",
-      customer: "Randy Born",
-      restaurant: "SushiCo",
-      date: "2025-08-12",
-      status: "Delivered",
-    },
-    {
-      id: "ORD003",
-      customer: "Kushtrim Bilali",
-      restaurant: "KFC",
-      date: "2025-08-11",
-      status: "Cancelled",
-    },
-  ]);
+const BASE = process.env.NEXT_PUBLIC_API_BASE_ORDERS || "http://localhost:5517";
 
-  // CSV export kolonları
+// Read token with possible keys in localStorage
+const readTokenFromStorage = () => {
+  if (typeof window === "undefined") return "";
+  const keys = ["adminToken", "token", "accessToken", "jwt", "authToken"];
+  for (const k of keys) {
+    const v = localStorage.getItem(k);
+    if (v && v.trim()) return v.trim();
+  }
+  return "";
+};
+
+// Find the array wherever it is in the incoming data
+const pickFirstArray = (obj) => {
+  if (Array.isArray(obj)) return obj;
+  if (obj && typeof obj === "object") {
+    const preferred = ["orders", "items", "data", "results", "list"];
+    for (const k of preferred) {
+      if (Array.isArray(obj?.[k])) return obj[k];
+      if (Array.isArray(obj?.[k]?.items)) return obj[k].items;
+    }
+    for (const v of Object.values(obj)) {
+      if (Array.isArray(v)) return v;
+      if (v && typeof v === "object" && Array.isArray(v.items)) return v.items;
+    }
+  }
+  return [];
+};
+
+// Text that can be written to the table; if an object arrives, select the appropriate fields or short JSON
+const safeText = (v) => {
+  if (v == null) return "";
+  const t = typeof v;
+  if (t === "string" || t === "number" || t === "boolean") return String(v);
+  if (t === "object") {
+    return (
+      v.name ||
+      v.fullName ||
+      v.restaurantName ||
+      v.email ||
+      v.title ||
+      v._id ||
+      JSON.stringify(v)
+    );
+  }
+  return String(v);
+};
+
+const formatAddress = (a) =>
+  typeof a === "string"
+    ? a
+    : [a?.street, a?.city, a?.postalCode, a?.country]
+        .filter(Boolean)
+        .join(", ");
+
+const formatDate = (iso) => {
+  try {
+    return new Date(iso).toLocaleDateString("en-CA"); // YYYY-MM-DD
+  } catch {
+    return iso || "";
+  }
+};
+
+/** Backend -> UI status mapping */
+const apiToUiStatus = (s) => {
+  const x = String(s || "").toLowerCase();
+  if (x === "delivered") return "Delivered";
+  if (x === "cancelled" || x === "canceled") return "Cancelled";
+  if (x === "preparing" || x === "ready") return "Getting Ready";
+  return "Getting Ready";
+};
+
+/** UI -> Backend status mapping */
+const uiToApiStatus = (s) => {
+  const x = String(s || "").toLowerCase();
+  if (x.includes("deliver")) return "delivered";
+  if (x.includes("cancel")) return "cancelled";
+  return "ready"; // "Getting Ready"
+};
+
+/* ================= Page ================= */
+
+export default function OrderManagementPage() {
+  const [orders, setOrders] = useState([]); // {id, customer, restaurant, date, status}
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState("");
+  const [token, setToken] = useState("");
+  const [tokenChecked, setTokenChecked] = useState(false);
+
+  // Modal state
+  const [selectedOrder, setSelectedOrder] = useState(null);
+  const [details, setDetails] = useState(null); // fetched details
+  const [modalType, setModalType] = useState(null); // "update" | "details"
+  const [newStatus, setNewStatus] = useState("");
+
+  // Pagination
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(6);
+  const clamp = (n, min, max) => Math.min(Math.max(n, min), max);
+
+  /* ===== Fetch Orders ===== */
+  const fetchOrders = async (tk) => {
+    setLoading(true);
+    setErr("");
+    try {
+      const res = await fetch(`${BASE}/admin/orders`, {
+        headers: { Authorization: `Bearer ${tk}` },
+        cache: "no-store",
+      });
+      const text = await res.text();
+      let data;
+      try {
+        data = text ? JSON.parse(text) : [];
+      } catch {
+        data = [];
+      }
+      if (!res.ok)
+        throw new Error(data?.message || text || `HTTP ${res.status}`);
+
+      const list = pickFirstArray(data);
+      const mapped = list.map((o, i) => {
+        const customerObj = o?.customer || o?.user;
+        const restaurantObj = o?.restaurant;
+        return {
+          id: o?._id || o?.id || `row-${i}`,
+          customer: safeText(
+            o?.customerName ?? customerObj ?? o?.userName ?? o?.userEmail
+          ),
+          restaurant: safeText(
+            o?.restaurantName ?? restaurantObj ?? o?.restaurantId
+          ),
+          date: formatDate(
+            o?.createdAt || o?.updatedAt || new Date().toISOString()
+          ),
+          status: apiToUiStatus(o?.status || o?.orderStatus || "ready"),
+        };
+      });
+      setOrders(mapped);
+    } catch (e) {
+      setErr(e.message || "Orders could not be loaded");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // token load + react to changes/focus
+  useEffect(() => {
+    const t = readTokenFromStorage();
+    if (t) setToken(t);
+    setTokenChecked(true);
+    const onStorage = () => setToken(readTokenFromStorage());
+    const onFocus = onStorage;
+    window.addEventListener("storage", onStorage);
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onFocus);
+    return () => {
+      window.removeEventListener("storage", onStorage);
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onFocus);
+    };
+  }, []);
+
+  // fetch on token available
+  useEffect(() => {
+    if (!tokenChecked) return;
+    if (!token) {
+      setLoading(false);
+      setErr("Error: Login (token) not found. Please log in as admin.");
+      return;
+    }
+    fetchOrders(token);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tokenChecked, token]);
+
+  // paging derive
+  const totalItems = orders.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  useEffect(() => {
+    setPage((p) => clamp(p, 1, totalPages));
+  }, [totalItems, pageSize]);
+
+  const start = (page - 1) * pageSize;
+  const pageRows = useMemo(
+    () => orders.slice(start, start + pageSize),
+    [orders, start, pageSize]
+  );
+
+  // --- Modal helpers ---
+  const openUpdateModal = (order) => {
+    setSelectedOrder(order);
+    setNewStatus(order.status || "Getting Ready");
+    setModalType("update");
+  };
+
+  const openDetailsModal = async (order) => {
+    setSelectedOrder(order);
+    setModalType("details");
+    setDetails(null);
+    try {
+      const res = await fetch(`${BASE}/admin/orders/details/${order.id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+        cache: "no-store",
+      });
+      const text = await res.text();
+      let data;
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch {
+        data = {};
+      }
+      if (!res.ok)
+        throw new Error(data?.message || text || `HTTP ${res.status}`);
+      setDetails(data);
+    } catch (e) {
+      setDetails({ error: e.message || "Details could not be loaded" });
+    }
+  };
+
+  const closeModal = () => {
+    setSelectedOrder(null);
+    setModalType(null);
+    setNewStatus("");
+    setDetails(null);
+  };
+
+  const handleUpdate = async () => {
+    if (!selectedOrder) return;
+    const orderId = selectedOrder.id;
+    const apiStatus = uiToApiStatus(newStatus);
+
+    // optimistic update
+    const prev = orders;
+    setOrders((p) =>
+      p.map((o) => (o.id === orderId ? { ...o, status: newStatus } : o))
+    );
+
+    try {
+      const res = await fetch(`${BASE}/admin/orders/status`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ orderId, newStatus: apiStatus }),
+      });
+      const t = await res.text();
+      if (!res.ok) {
+        let msg = "";
+        try {
+          msg = JSON.parse(t)?.message || t;
+        } catch {
+          msg = t;
+        }
+        throw new Error(msg || `HTTP ${res.status}`);
+      }
+      closeModal();
+    } catch (e) {
+      // rollback
+      setOrders(prev);
+      alert(e.message || "Update failed");
+    }
+  };
+
+  // UI helpers
+  const getStatusBadge = (status) => {
+    const s = String(status || "");
+    if (/delivered/i.test(s)) return "bg-green-100 text-green-700";
+    if (/cancel/i.test(s)) return "bg-red-100 text-red-700";
+    return "bg-yellow-100 text-yellow-700"; // Getting Ready / others
+  };
+
+  if (!tokenChecked) return <div className="p-4">Checking…</div>;
+  if (loading) return <div className="p-4">Loading…</div>;
+  if (err) return <div className="p-4 text-red-600">{err}</div>;
+
+  // CSV export headers
   const csvHeaders = [
     { label: "Order ID", key: "id" },
     { label: "Customer", key: "customer" },
@@ -36,65 +287,6 @@ export default function OrderManagementPage() {
     { label: "Date", key: "date" },
     { label: "Status", key: "status" },
   ];
-
-  // Modal state
-  const [selectedOrder, setSelectedOrder] = useState(null);
-  const [modalType, setModalType] = useState(null); // "update" | "details"
-  const [newStatus, setNewStatus] = useState("");
-
-  // --- PAGING  ---
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(6); // 6 / 12 / 24 / 48
-  const clamp = (n, min, max) => Math.min(Math.max(n, min), max);
-
-  const totalItems = orders.length;
-  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
-
-  // Keep current page within safe range when orders/pageSize changes
-  useEffect(() => {
-    setPage((p) => clamp(p, 1, totalPages));
-  }, [totalItems, pageSize]);
-
-  // active page rows
-  const start = (page - 1) * pageSize;
-  const pageRows = orders.slice(start, start + pageSize);
-
-  // --- Modal helpers ---
-  const openUpdateModal = (order) => {
-    setSelectedOrder(order);
-    setNewStatus(order.status);
-    setModalType("update");
-  };
-  const openDetailsModal = (order) => {
-    setSelectedOrder(order);
-    setModalType("details");
-  };
-  const closeModal = () => {
-    setSelectedOrder(null);
-    setModalType(null);
-    setNewStatus("");
-  };
-  const handleUpdate = () => {
-    setOrders((prev) =>
-      prev.map((o) =>
-        o.id === selectedOrder.id ? { ...o, status: newStatus } : o
-      )
-    );
-    closeModal();
-  };
-
-  // UI helpers
-  const getStatusBadge = (status) => {
-    switch (status) {
-      case "Delivered":
-        return "bg-green-100 text-green-700";
-      case "Cancelled":
-        return "bg-red-100 text-red-700";
-      case "Getting Ready":
-      default:
-        return "bg-yellow-100 text-yellow-700";
-    }
-  };
 
   return (
     <div className="min-h-screen">
@@ -128,27 +320,29 @@ export default function OrderManagementPage() {
                   key={order.id}
                   className="hover:bg-gray-50 transition max-[1200px]:text-[14px]"
                 >
-                  <td className="px-6 py-4">{order.id}</td>
-                  <td className="px-6 py-4">{order.customer}</td>
-                  <td className="px-6 py-4">{order.restaurant}</td>
-                  <td className="px-6 py-4">{order.date}</td>
+                  <td className="px-6 py-4">{safeText(order.id)}</td>
+                  <td className="px-6 py-4">{safeText(order.customer)}</td>
+                  <td className="px-6 py-4">{safeText(order.restaurant)}</td>
+                  <td className="px-6 py-4">{safeText(order.date)}</td>
                   <td className="px-6 py-4">
                     <span
                       className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${getStatusBadge(
                         order.status
                       )}`}
                     >
-                      {order.status}
+                      {safeText(order.status)}
                     </span>
                   </td>
                   <td className="px-6 py-4 flex gap-2">
                     <button
+                      type="button"
                       onClick={() => openUpdateModal(order)}
                       className="bg-blue-500 hover:bg-blue-600 text-white text-xs font-semibold px-3 py-1 rounded"
                     >
                       Update
                     </button>
                     <button
+                      type="button"
                       onClick={() => openDetailsModal(order)}
                       className="bg-gray-200 hover:bg-gray-300 text-gray-800 text-xs font-medium px-3 py-1 rounded"
                     >
@@ -181,7 +375,7 @@ export default function OrderManagementPage() {
                   Update Order Status
                 </h2>
                 <p className="mb-2 text-gray-800">
-                  <strong>Order ID:</strong> {selectedOrder.id}
+                  <strong>Order ID:</strong> {safeText(selectedOrder.id)}
                 </p>
                 <label className="block mb-4 text-gray-800">
                   <span className="text-gray-800">New Status:</span>
@@ -198,12 +392,14 @@ export default function OrderManagementPage() {
 
                 <div className="flex justify-end space-x-2">
                   <button
+                    type="button"
                     onClick={closeModal}
                     className="bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded"
                   >
                     Cancel
                   </button>
                   <button
+                    type="button"
                     onClick={handleUpdate}
                     className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded"
                   >
@@ -218,25 +414,75 @@ export default function OrderManagementPage() {
                 <h2 className="text-xl font-bold mb-4 text-gray-900">
                   Order Details
                 </h2>
-                <div className="text-gray-800 space-y-2">
-                  <p>
-                    <strong>Order ID:</strong> {selectedOrder.id}
-                  </p>
-                  <p>
-                    <strong>Customer:</strong> {selectedOrder.customer}
-                  </p>
-                  <p>
-                    <strong>Restaurant:</strong> {selectedOrder.restaurant}
-                  </p>
-                  <p>
-                    <strong>Date:</strong> {selectedOrder.date}
-                  </p>
-                  <p>
-                    <strong>Status:</strong> {selectedOrder.status}
-                  </p>
-                </div>
+                {details?.error ? (
+                  <div className="text-red-600">{details.error}</div>
+                ) : !details ? (
+                  <div className="text-gray-600">Loading…</div>
+                ) : (
+                  <div className="text-gray-800 space-y-2">
+                    <p>
+                      <strong>Order ID:</strong> {safeText(selectedOrder.id)}
+                    </p>
+                    <p>
+                      <strong>Customer:</strong>{" "}
+                      {safeText(
+                        details.customer ||
+                          details.customerName ||
+                          selectedOrder.customer
+                      )}
+                    </p>
+                    <p>
+                      <strong>Restaurant:</strong>{" "}
+                      {safeText(
+                        details.restaurant ||
+                          details.restaurant?.restaurantName ||
+                          details.restaurantName ||
+                          selectedOrder.restaurant
+                      )}
+                    </p>
+                    <p>
+                      <strong>Date:</strong>{" "}
+                      {safeText(
+                        formatDate(details.createdAt || selectedOrder.date)
+                      )}
+                    </p>
+                    <p>
+                      <strong>Status:</strong>{" "}
+                      {safeText(
+                        apiToUiStatus(details.status) || selectedOrder.status
+                      )}
+                    </p>
+
+                    {details.phone && (
+                      <p>
+                        <strong>Phone:</strong> {safeText(details.phone)}
+                      </p>
+                    )}
+                    {details.address && (
+                      <p>
+                        <strong>Address:</strong>{" "}
+                        {safeText(formatAddress(details.address))}
+                      </p>
+                    )}
+
+                    {Array.isArray(details.cart) && details.cart.length > 0 && (
+                      <div className="pt-2">
+                        <strong>Items:</strong>
+                        <ul className="list-disc ml-5">
+                          {details.cart.map((it, idx) => (
+                            <li key={idx}>
+                              {safeText(it?.menuItem?.name || it?.menuItemId)} ×{" "}
+                              {safeText(it?.quantity)}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                )}
                 <div className="mt-4 flex justify-end">
                   <button
+                    type="button"
                     onClick={closeModal}
                     className="bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded"
                   >
@@ -299,6 +545,7 @@ function PaginationControls({
         </select>
 
         <button
+          type="button"
           className="px-2 py-1 border rounded disabled:opacity-50"
           onClick={() => setPage((p) => Math.max(1, p - 1))}
           disabled={page === 1}
@@ -310,6 +557,7 @@ function PaginationControls({
           {Array.from({ length: totalPages }, (_, i) => i + 1).map((n) => (
             <button
               key={n}
+              type="button"
               aria-current={page === n ? "page" : undefined}
               className={`px-3 py-1 border rounded ${
                 page === n ? "bg-gray-800 text-white" : "hover:bg-gray-100"
@@ -327,6 +575,7 @@ function PaginationControls({
         </div>
 
         <button
+          type="button"
           className="px-2 py-1 border rounded disabled:opacity-50"
           onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
           disabled={page === totalPages}
