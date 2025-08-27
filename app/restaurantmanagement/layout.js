@@ -52,6 +52,12 @@ export default function Navbar({ children }) {
         {/* Desktop Navigation */}
         <nav className="hidden sm:flex flex-1 justify-center space-x-4 text-[16px]">
           <Link
+            href="/restaurantmanagement/ownerprofile"
+            className={linkClasses("/restaurantmanagement/ownerprofile")}
+          >
+            My Profile
+          </Link>
+          <Link
             href="/restaurantmanagement/restaurants"
             className={linkClasses("/restaurantmanagement/restaurants")}
           >
@@ -95,7 +101,7 @@ export default function Navbar({ children }) {
             onClick={handleLoginLogout}
             className="bg-orange-500 text-white px-4 py-2 rounded-lg hover:bg-orange-600 transition-colors"
           >
-            {isLoggedIn ? "Logout" : "Login"}
+            {isLoggedIn ? "Login" : "Logout"}
           </button>
         </div>
       </header>

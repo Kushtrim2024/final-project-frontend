@@ -1,6 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+
+const API_GET = "http://localhost:5517/owner/getRestaurantOwnerProfile";
+const API_PUT = "http://localhost:5517/owner/profile/update";
 
 export default function RestaurantProfile() {
   const [coverPhoto, setCoverPhoto] = useState(null);
@@ -12,6 +15,10 @@ export default function RestaurantProfile() {
   const [deliveryTime, setDeliveryTime] = useState("");
   const [deliveryFee, setDeliveryFee] = useState("");
 
+  const [owner, setOwner] = useState(null);
+
+  const [loading, setLoading] = useState(true);
+
   const cuisineOptions = [
     "Turkish",
     "Vegan",
@@ -21,6 +28,46 @@ export default function RestaurantProfile() {
     "Burgers",
   ];
 
+  // --- GET: Restaurant Profil laden ---
+  useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        const token = localStorage.getItem("token");
+        if (!token) {
+          console.warn("Kein Token gefunden. Bitte einloggen.");
+          setLoading(false);
+          return;
+        }
+
+        const res = await fetch(API_GET, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        if (!res.ok) throw new Error("Fehler beim Laden des Profils");
+        const data = await res.json();
+
+        setName(data.restaurant?.name || "");
+        setDescription(data.restaurant?.description || "");
+        setCuisines(data.restaurant?.cuisines || []);
+        setMinOrder(data.restaurant?.minOrder || "");
+        setDeliveryTime(data.restaurant?.deliveryTime || "");
+        setDeliveryFee(data.restaurant?.deliveryFee || "");
+        setCoverPhoto(data.restaurant?.coverPhoto || null);
+        setLogo(data.restaurant?.logo || null);
+
+        setOwner(data.owner || null); // Owner-Daten merken
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProfile();
+  }, []);
+
   const toggleCuisine = (cuisine) => {
     setCuisines((prev) =>
       prev.includes(cuisine)
@@ -29,8 +76,9 @@ export default function RestaurantProfile() {
     );
   };
 
-  const handleSave = () => {
-    console.log({
+  // --- PUT: Restaurant Profil speichern ---
+  const handleSave = async () => {
+    const payload = {
       coverPhoto,
       logo,
       name,
@@ -39,16 +87,44 @@ export default function RestaurantProfile() {
       minOrder,
       deliveryTime,
       deliveryFee,
-    });
-    alert("Changes saved (dummy)");
+    };
+
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        alert("Bitte einloggen, um Änderungen zu speichern.");
+        return;
+      }
+
+      const res = await fetch(API_PUT, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) throw new Error("Fehler beim Speichern des Profils");
+      const updated = await res.json();
+      alert("Änderungen gespeichert!");
+      console.log("Gespeichert:", updated);
+    } catch (err) {
+      console.error(err);
+      alert("Fehler beim Speichern");
+    }
   };
 
+  if (loading) {
+    return <p className="text-center mt-10">Profil wird geladen...</p>;
+  }
+
   return (
-    <div className="p-6 border bg-white border-white rounded-xl max-w-3xl mx-auto text-gray-800">
+    <div className="p-6 border bg-white border-white rounded-xl max-w-5xl mx-auto text-gray-800 shadow-lg">
       <h1 className="text-2xl font-bold mb-4">Restaurant Profile & Visuals</h1>
 
       {/* Cover Photo */}
-      <div className="mb-4 border-1 rounded-lg p-4">
+      <div className="mb-4 border rounded-lg p-4">
         <label className="block mb-1 font-semibold">Cover Photo</label>
         <input
           type="file"
@@ -68,7 +144,7 @@ export default function RestaurantProfile() {
       </div>
 
       {/* Logo */}
-      <div className="mb-4 border-1 rounded-lg p-4">
+      <div className="mb-4 border rounded-lg p-4">
         <label className="block mb-1 font-semibold">Logo</label>
         <input
           type="file"
@@ -156,6 +232,26 @@ export default function RestaurantProfile() {
       >
         Save Changes
       </button>
+
+      {/* --- Owner Informationen --- */}
+      {owner && (
+        <div className="mt-8 p-4 border rounded-lg bg-gray-50">
+          <h2 className="text-xl font-semibold mb-2">Owner Information</h2>
+          <p>
+            <span className="font-semibold">Name:</span>{" "}
+            {owner.username || "N/A"}
+          </p>
+          <p>
+            <span className="font-semibold">Email:</span> {owner.email || "N/A"}
+          </p>
+          <p>
+            <span className="font-semibold">Phone:</span> {owner.phone || "N/A"}
+          </p>
+          <p>
+            <span className="font-semibold">Role:</span> {owner.role || "Owner"}
+          </p>
+        </div>
+      )}
     </div>
   );
 }

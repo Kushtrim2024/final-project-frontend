@@ -22,12 +22,15 @@ export default function RootLayoutWrapper({ children }) {
     "/admin/ordermanagement",
     "/admin/paymentscommissionreports",
     "/admin/supportfeedback",
+
     "/restaurantmanagement/restaurants",
     "/restaurantmanagement/pricingpromo",
     "/restaurantmanagement/customerfeedback",
     "/restaurantmanagement/ordermanagement",
     "/restaurantmanagement/openinghours",
     "/restaurantmanagement/restaurantpro",
+    "/restaurantmanagement/ownerprofile",
+
     "/usermanagement/profile",
     "/usermanagement/paymentmethods",
     "/usermanagement/address",
