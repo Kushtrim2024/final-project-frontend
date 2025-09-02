@@ -22,8 +22,10 @@ export const metadata = {
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
-      <body className="bg-white/50 text-[var(--foreground)] font-sans">
-        <RootLayoutWrapper>{children}</RootLayoutWrapper>
+      <body className="bg-white/50 font-sans">
+        <RootLayoutWrapper>
+          <div className="min-h-[35rem] ">{children}</div>
+        </RootLayoutWrapper>
       </body>
     </html>
   );

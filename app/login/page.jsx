@@ -50,7 +50,7 @@ function LoginPage() {
       localStorage.setItem("token", data.token);
       router.push("/usermanagement");
     } catch (err) {
-      setLoginError("Sunucu hatası. Lütfen tekrar deneyin.");
+      setLoginError("Server error. Please try again.");
     } finally {
       setLoginLoading(false);
     }
@@ -62,7 +62,7 @@ function LoginPage() {
     setRegisterSuccess(null);
 
     if (reg.password !== reg.passwordConfirm) {
-      setRegisterError("Şifreler uyuşmuyor.");
+      setRegisterError("Passwords do not match.");
       return;
     }
 
@@ -76,12 +76,12 @@ function LoginPage() {
       const data = await res.json();
 
       if (!res.ok) {
-        setRegisterError(data.message || "Kayıt başarısız.");
+        setRegisterError(data.message || "Registration failed.");
         return;
       }
 
-      // Başarılı kayıt: modalı kapat, login formunu doldur
-      setRegisterSuccess("Kayıt başarılı! Giriş yapabilirsiniz.");
+      // Successful registration: close modal, fill login form
+      setRegisterSuccess("Registration successful! You can log in.");
       setEmail(reg.email);
       setPassword(reg.password);
       setTimeout(() => {
@@ -89,10 +89,10 @@ function LoginPage() {
         setRegisterSuccess(null);
       }, 800);
 
-      // İstersen otomatik login de yapabilirsin:
+      // If you want, you can also do automatic login:
       // await handleLogin(new Event("submit"));
     } catch (err) {
-      setRegisterError("Sunucu hatası. Lütfen tekrar deneyin.");
+      setRegisterError("Server error. Please try again.");
     } finally {
       setRegisterLoading(false);
     }
@@ -344,7 +344,7 @@ function LoginPage() {
                 disabled={registerLoading}
                 className="w-full py-2 px-4 bg-green-600 text-white font-semibold rounded-md hover:bg-green-700 transition disabled:opacity-60"
               >
-                {registerLoading ? "Gönderiliyor..." : "Send"}
+                {registerLoading ? "sending..." : "Send"}
               </button>
             </form>
           </div>

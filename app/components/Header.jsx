@@ -1,179 +1,504 @@
 "use client";
-import React, { useState } from "react";
+
+import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { useSearchParams, usePathname } from "next/navigation";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
-  faSearch,
   faShoppingCart,
   faUser,
   faStore,
-  faChevronLeft,
-  faChevronRight,
+  faAngleDown,
+  faRightFromBracket,
+  faGear,
 } from "@fortawesome/free-solid-svg-icons";
 
+/** ====== CONFIG ====== */
+const API_BASE =
+  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5517";
+
+const SETTINGS_ROUTE_BY_ROLE = {
+  restaurant: "/dashboard/restaurant",
+  user: "/dashboard/user",
+  admin: "/dashboard",
+};
+
+const CATEGORIES = [
+  { label: "Burger", icon: "/burger.png" },
+  { label: "Doner", icon: "/doner.png" },
+  { label: "Chicken", icon: "/chicken.png" },
+  { label: "Pizza", icon: "/pizza.png" },
+  { label: "Sushi", icon: "/sushi.png" },
+  { label: "Pasta", icon: "/pasta.png" },
+  { label: "Salad", icon: "/salad.png" },
+  { label: "Vegan", icon: "/vegan.png" },
+  { label: "Vegetarian", icon: "/vegetarian.png" },
+  { label: "Seafood", icon: "/seafood.png" },
+];
+
+/** ====== Helpers ====== */
+function slugify(text) {
+  return (text || "")
+    .toString()
+    .toLocaleLowerCase("tr")
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)+/g, "");
+}
+function safeJson(raw) {
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+function parseJwt(token) {
+  try {
+    const base64Url = token.split(".")[1];
+    const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+    const json = atob(base64);
+    return JSON.parse(
+      decodeURIComponent(
+        [...json]
+          .map((c) => "%" + c.charCodeAt(0).toString(16).padStart(2, "0"))
+          .join("")
+      )
+    );
+  } catch {
+    return null;
+  }
+}
+function normalizeRole(r, obj) {
+  const s = (r || "").toString().toLowerCase();
+  if (["owner", "restaurantowner", "restaurant_owner"].includes(s))
+    return "restaurant";
+  if (["customer"].includes(s)) return "user";
+  if (!s && (obj?.restaurantId || obj?.restaurant || obj?.ownerId))
+    return "restaurant";
+  return s || null;
+}
+function pickDisplayName(u) {
+  return (
+    u?.name ||
+    u?.fullName ||
+    u?.username ||
+    u?.restaurantName ||
+    u?.email ||
+    null
+  );
+}
+function mergeUserShape(anyJson) {
+  // farklı backendlere göre muhtemel kökler
+  const u =
+    anyJson?.user ||
+    anyJson?.data ||
+    anyJson?.owner ||
+    anyJson?.restaurantOwner ||
+    anyJson?.profile ||
+    anyJson ||
+    {};
+  const out = {
+    id: u.id || u._id || u.userId || null,
+    name: pickDisplayName(u),
+    role: normalizeRole(u.role || u.type, u),
+    restaurantId: u.restaurantId || u.ownerId || null,
+    email: u.email || null,
+  };
+  if (!out.role && (u.restaurantId || u.ownerId)) out.role = "restaurant";
+  if (!out.role) out.role = "user";
+  return out;
+}
+
+/** localStorage + JWT’den oku */
+function getAuthLocal() {
+  const auth = safeJson(localStorage.getItem("auth")) || {};
+  const userObj =
+    safeJson(localStorage.getItem("user")) ||
+    safeJson(localStorage.getItem("customer")) ||
+    null;
+  const ownerObj =
+    safeJson(localStorage.getItem("restaurantOwner")) ||
+    safeJson(localStorage.getItem("owner")) ||
+    null;
+
+  const token =
+    auth.token ||
+    auth.accessToken ||
+    localStorage.getItem("token") ||
+    localStorage.getItem("accessToken") ||
+    localStorage.getItem("jwt") ||
+    null;
+
+  let userLike = { ...auth.user, ...auth, ...userObj, ...ownerObj };
+  let role = normalizeRole(
+    auth.role ||
+      userObj?.role ||
+      ownerObj?.role ||
+      localStorage.getItem("role"),
+    userLike
+  );
+  let name =
+    auth.name ||
+    pickDisplayName(userLike) ||
+    localStorage.getItem("username") ||
+    null;
+  let restaurantId =
+    auth.restaurantId ||
+    userObj?.restaurantId ||
+    ownerObj?.restaurantId ||
+    null;
+
+  if (token) {
+    const claims = parseJwt(token);
+    if (claims) {
+      role = normalizeRole(role || claims.role || claims.type, claims);
+      name = name || pickDisplayName(claims);
+      restaurantId = restaurantId || claims.restaurantId || null;
+    }
+  }
+  return { token, role, name, restaurantId };
+}
+
+/** backend’ten kesinleştir */
+async function fetchMe(token) {
+  const endpoints = [
+    "/auth/me",
+    "/users/me",
+    "/owners/me",
+    "/restaurant-owners/me",
+    "/profile",
+    "/me",
+    "/api/me",
+  ];
+  for (const p of endpoints) {
+    try {
+      const res = await fetch(`${API_BASE}${p}`, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        credentials: "include",
+        cache: "no-store",
+      });
+      if (res.ok) {
+        const json = await res.json();
+        return { ok: true, user: mergeUserShape(json) };
+      }
+    } catch {}
+  }
+  return { ok: false, user: null };
+}
+
 export default function Header() {
-  const [rotation, setRotationY] = useState(0);
-  const [openIndex, setOpenIndex] = useState(null);
+  const searchParams = useSearchParams();
+  const pathname = usePathname();
 
-  // 3D ring settings
-  const RADIUS = 400; // px
-  const images = [
-    "/dessert.png",
-    "/chicken.png",
-    "/sushi.png",
-    "/burger.png",
-    "/doner.png",
-    "/kebab.png",
-    "/pizza.png",
-    "/salad.png",
-  ];
+  const catFromUrl = searchParams.get("cat");
+  const defaultActive = slugify(CATEGORIES[0].label);
 
-  const labels = [
-    "Dessert",
-    "Chicken",
-    "Sushi",
-    "Burger",
-    "Doner",
-    "Kebab",
-    "Pizza",
-    "Salad",
-  ];
-  const STEP = 360 / images.length; // arrows will rotate this much on each click
+  const [active, setActive] = useState(catFromUrl || defaultActive);
+  const [indicator, setIndicator] = useState({ left: 0, width: 0 });
+  const railRef = useRef(null);
+
+  const [authChecked, setAuthChecked] = useState(false);
+  const [token, setToken] = useState(null);
+  const [role, setRole] = useState(null);
+  const [displayName, setDisplayName] = useState(null);
+
+  const [showUserMenu, setShowUserMenu] = useState(false);
+  const [showRestaurantMenu, setShowRestaurantMenu] = useState(false);
+  const userMenuRef = useRef(null);
+  const restMenuRef = useRef(null);
+
+  useEffect(() => setActive(catFromUrl || defaultActive), [catFromUrl]);
+
+  const updateIndicator = (slug) => {
+    const rail = railRef.current;
+    if (!rail) return;
+    const el = rail.querySelector(`[data-slug="${slug}"]`);
+    if (!el) return;
+    const railBox = rail.getBoundingClientRect();
+    const elBox = el.getBoundingClientRect();
+    setIndicator({
+      left: elBox.left - railBox.left + rail.scrollLeft,
+      width: elBox.width,
+    });
+  };
+  useEffect(() => {
+    updateIndicator(active);
+  }, [active]);
+  useEffect(() => {
+    const onResize = () => updateIndicator(active);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, [active]);
+
+  useEffect(() => {
+    function onDocClick(e) {
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target)) {
+        setShowUserMenu(false);
+      }
+      if (restMenuRef.current && !restMenuRef.current.contains(e.target)) {
+        setShowRestaurantMenu(false);
+      }
+    }
+    document.addEventListener("click", onDocClick);
+    return () => document.removeEventListener("click", onDocClick);
+  }, []);
+
+  // login durumu (local -> backend)
+  useEffect(() => {
+    async function run() {
+      const local = getAuthLocal();
+      setToken(local.token || null);
+      if (local.role) setRole(local.role);
+      if (local.name) setDisplayName(local.name);
+
+      const { ok, user } = await fetchMe(local.token);
+      if (ok && user) {
+        setRole(user.role || local.role || null);
+        setDisplayName(pickDisplayName(user) || local.name || null);
+      }
+      setAuthChecked(true);
+    }
+    run();
+
+    function onStorage(e) {
+      if (
+        [
+          "auth",
+          "token",
+          "accessToken",
+          "jwt",
+          "role",
+          "username",
+          "user",
+          "restaurantOwner",
+          "owner",
+          "customer",
+        ].includes(e.key)
+      ) {
+        run();
+      }
+    }
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, []);
+
+  const buildHrefWithCat = (slug) => {
+    const params = new URLSearchParams(Array.from(searchParams.entries()));
+    params.set("cat", slug);
+    params.delete("page");
+    return `${pathname}?${params.toString()}`;
+  };
+
+  async function handleLogout() {
+    try {
+      await fetch(`${API_BASE}/auth/logout`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        credentials: "include",
+      }).catch(() => {});
+    } catch {}
+    try {
+      [
+        "auth",
+        "token",
+        "accessToken",
+        "jwt",
+        "role",
+        "username",
+        "user",
+        "restaurantOwner",
+        "owner",
+        "customer",
+      ].forEach((k) => localStorage.removeItem(k));
+    } catch {}
+    setToken(null);
+    setRole(null);
+    setDisplayName(null);
+    setShowUserMenu(false);
+    setShowRestaurantMenu(false);
+    if (typeof window !== "undefined") window.location.href = "/login";
+  }
+
+  const settingsHref = (role && SETTINGS_ROUTE_BY_ROLE[role]) || "/settings";
 
   return (
-    <header className="sticky top-0 z-50 backdrop-blur-md drop-shadow-[0_10px_10px_rgba(255,255,255,0.25)] flex flex-col w-full h-55  max-[700px]:h-42">
-      {/* Main Header ---------------------------------------------------------------------------------------------------- */}
-
-      <div className="relative flex items-center justify-center w-full  ">
-        {/* Logo --------------------------------------------------------------------------------*/}
-        <section className="absolute top-10 left-12 h-34 w-34 flex items-center justify-left max-[1000px]:scale-85 max-[1000px]:left-[15px] max-[650px]:scale-70 max-[600px]:left-[-5px]  max-[600px]:top-[-15px]">
+    <header className="fixed top-0 z-50 flex flex-col w-full h-36 max-[700px]:h-44 transition-colors duration-300 bg-orange-200/25 backdrop-blur-md shadow-md ">
+      <div className="relative w-full h-32 flex items-center justify-center mt-2 mx-auto  max-[700px]:mt-10 ">
+        {/* Logo */}
+        <section className="absolute bottom-[-15px] left-25 h-36 w-34 flex items-center justify-left max-[1000px]:scale-85 max-[1000px]:left-[15px] max-[650px]:scale-70 max-[600px]:left-[-5px]  max-[600px]:top-[-15px]">
           <Link href="/">
             <Image
               src="/logo.png"
               alt="Liefrik Logo"
-              width={100}
-              height={100}
-              className="h-22 w-24 transition-all duration-200 transform hover:translate-y-1 cursor-pointer "
+              width={140}
+              height={140}
+              className="h-22 w-22 transition-all duration-200 transform hover:translate-y-1 cursor-pointer "
             />
           </Link>
         </section>
-        {/* Search Bar (Desktop only) --------------------------------------------------------------------------------*/}
-        <section className="flex flex-1 justify-center max-w-3xl mt-2 max-[1050px]:scale-85 max-[1050px]:ml-12 max-[700px]:hidden">
-          <div className="relative w-full max-w-md mr-8">
-            <input
-              type="text"
-              placeholder="Search for restaurants..."
-              className="w-full pl-10 pr-4 py-2 h-10 text-sm text-gray-800 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400 focus:border-transparent focus:outline-none"
+
+        {/* Kategoriler */}
+        <nav aria-label="Categories" className="relative flex justify-center ">
+          <div
+            ref={railRef}
+            className="flex gap-10 md:gap-12 justify-center relative px-4"
+          >
+            <span
+              aria-hidden
+              className="absolute -bottom-1 h-[2px] bg-red-400 rounded-full transition-all duration-300"
+              style={{ left: indicator.left, width: indicator.width }}
             />
-            <FontAwesomeIcon
-              icon={faSearch}
-              className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400"
-            />
+            {CATEGORIES.map((c) => {
+              const slug = slugify(c.label);
+              const isActive = active === slug;
+              const href = buildHrefWithCat(slug);
+              return (
+                <Link
+                  key={slug}
+                  data-slug={slug}
+                  href={href}
+                  onMouseEnter={() => updateIndicator(slug)}
+                  onMouseLeave={() => updateIndicator(active)}
+                  className={`group flex flex-col items-center transition-all duration-300  ${
+                    isActive
+                      ? "text-orange-500 scale-105"
+                      : "text-gray-800 hover:text-red-500 hover:scale-105"
+                  }`}
+                >
+                  <Image
+                    src={c.icon}
+                    alt={c.label}
+                    width={110}
+                    height={110}
+                    className="h-16 w-16 object-contain mb-1 drop-shadow-md transition-transform group-hover:scale-110"
+                  />
+                  <span className="text-xs font-medium tracking-tight">
+                    {c.label}
+                  </span>
+                </Link>
+              );
+            })}
           </div>
-        </section>
-        {/* User Actions --------------------------------------------------------------------------------*/}
-        <section className="absolute top-8 right-2 space-x-2  lg:w-70  sm:w-40 flex items-center justify-end   mr-2">
-          <Link
-            href="/partnerwithus"
-            className="text-gray-700 hover:text-red-500 transition-all duration-200 transform hover:translate-y-1 flex items-center cursor-pointer"
-          >
-            <FontAwesomeIcon icon={faStore} className="h-4 w-4 mr-0.5" />
-            <span className="hidden  min-[1050px]:block">Partner with us</span>
-          </Link>
+        </nav>
 
-          <Link
-            href="/login"
-            className="text-gray-700 hover:text-red-500 transition-all duration-200 transform hover:translate-y-1 flex items-center cursor-pointer"
-          >
-            <FontAwesomeIcon icon={faUser} className="h-5 w-5 mr-0.5" />
-            <span className="hidden min-[1050px]:block">Account</span>
-          </Link>
+        {/* Sağ aksiyonlar */}
+        <section className="absolute right-20 bottom-15 space-x-2 lg:w-70 sm:w-40 flex items-center justify-end mr-2">
+          {/* Restaurant owner login olduysa: isim + dropdown, değilse Partner with us */}
+          {authChecked && role === "restaurant" ? (
+            <div className="relative" ref={restMenuRef}>
+              <button
+                className="text-gray-800 hover:text-red-500 transition-all duration-200 transform hover:translate-y-1 flex items-center cursor-pointer rounded-md px-2 py-1 bg-white/50"
+                onClick={() => {
+                  setShowRestaurantMenu((v) => !v);
+                  setShowUserMenu(false);
+                }}
+              >
+                <FontAwesomeIcon icon={faStore} className="h-4 w-4 mr-1" />
+                <span className="hidden min-[1050px]:block font-medium">
+                  {displayName || "Restaurant"}
+                </span>
+                <FontAwesomeIcon icon={faAngleDown} className="h-3 w-3 ml-1" />
+              </button>
+              {showRestaurantMenu && (
+                <div className="absolute right-0 mt-2 w-48 rounded-lg bg-white shadow-lg ring-1 ring-black/10 overflow-hidden">
+                  <Link
+                    href={settingsHref}
+                    className="flex items-center gap-2 px-3 py-2 text-sm text-gray-800 hover:bg-gray-50"
+                    onClick={() => setShowRestaurantMenu(false)}
+                  >
+                    <FontAwesomeIcon icon={faGear} className="h-4 w-4" />
+                    <span>Settings</span>
+                  </Link>
+                  <button
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50"
+                    onClick={handleLogout}
+                  >
+                    <FontAwesomeIcon
+                      icon={faRightFromBracket}
+                      className="h-4 w-4"
+                    />
+                    <span>Logout</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <Link
+              href="/partnerwithus"
+              className="text-gray-800 hover:text-red-500 transition-all duration-200 transform hover:translate-y-1 flex items-center cursor-pointer"
+            >
+              <FontAwesomeIcon icon={faStore} className="h-4 w-4 mr-0.5" />
+              <span className="hidden min-[1050px]:block">Partner with us</span>
+            </Link>
+          )}
 
+          {/* User login olduysa: isim + dropdown, değilse Account */}
+          {authChecked && role === "user" ? (
+            <div className="relative" ref={userMenuRef}>
+              <button
+                className="text-gray-800 hover:text-red-500 transition-all duration-200 transform hover:translate-y-1 flex items-center cursor-pointer rounded-md px-2 py-1 bg-white/50"
+                onClick={() => {
+                  setShowUserMenu((v) => !v);
+                  setShowRestaurantMenu(false);
+                }}
+              >
+                <FontAwesomeIcon icon={faUser} className="h-5 w-5 mr-1" />
+                <span className="hidden min-[1050px]:block font-medium">
+                  {displayName || "Account"}
+                </span>
+                <FontAwesomeIcon icon={faAngleDown} className="h-3 w-3 ml-1" />
+              </button>
+              {showUserMenu && (
+                <div className="absolute right-0 mt-2 w-48 rounded-lg bg-white shadow-lg ring-1 ring-black/10 overflow-hidden">
+                  <Link
+                    href={settingsHref}
+                    className="flex items-center gap-2 px-3 py-2 text-sm text-gray-800 hover:bg-gray-50"
+                    onClick={() => setShowUserMenu(false)}
+                  >
+                    <FontAwesomeIcon icon={faGear} className="h-4 w-4" />
+                    <span>Settings</span>
+                  </Link>
+                  <button
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50"
+                    onClick={handleLogout}
+                  >
+                    <FontAwesomeIcon
+                      icon={faRightFromBracket}
+                      className="h-4 w-4"
+                    />
+                    <span>Logout</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <Link
+              href="/login"
+              className="text-gray-800 hover:text-red-500 transition-all duration-200 transform hover:translate-y-1 flex items-center cursor-pointer"
+            >
+              <FontAwesomeIcon icon={faUser} className="h-5 w-5 mr-0.5" />
+              <span className="hidden min-[1050px]:block">Account</span>
+            </Link>
+          )}
+
+          {/* Sepet */}
           <Link
             href="/cart"
-            className="text-gray-700 hover:text-red-500 transition-all duration-200 transform hover:translate-y-1 flex items-center cursor-pointer"
+            className="text-gray-800 hover:text-red-500 transition-all duration-200 transform hover:translate-y-1 flex items-center cursor-pointer"
+            aria-label="Cart"
           >
             <FontAwesomeIcon icon={faShoppingCart} className="h-5 w-5 pr-0.5" />
           </Link>
         </section>
-      </div>
-
-      {/* Category Carousel – arrows will control, no background --------------------------------------------------------------------------------*/}
-      <div className="relative w-7/12 h-40 flex items-center mx-auto  max-[700px]:mt-10 ">
-        <div>
-          {/* Left Arrow (always on top) */}
-
-          <button
-            onClick={() => setRotationY((prev) => prev - STEP)}
-            className="absolute left-2 z-50 text-gray-500 hover:text-red-700"
-            aria-label="Previous"
-          >
-            <FontAwesomeIcon icon={faChevronLeft} className="w-6 h-6" />
-          </button>
-        </div>
-
-        {/* Stage */}
-        <div
-          className="relative w-11/12 max-w-5xl h-40 mx-auto overflow-hidden"
-          style={{ perspective: "1000px" }}
-        >
-          {/* ring stage is below the arrows--------------------------------------------------------------------------------*/}
-          <div
-            className="absolute inset-0 z-0"
-            style={{ transformStyle: "preserve-3d" }}
-          >
-            {images.map((src, index) => {
-              const base = STEP * index;
-              const worldAngle = base + rotation; //screen real degrees
-              const rad = (worldAngle * Math.PI) / 180;
-              const depth = Math.cos(rad); // -1..1 (önde ≈1)
-              const scale = 0.85 + 0.25 * ((depth + 1) / 2); // 0.85..1.10
-              const opacity = 0.55 + 0.45 * ((depth + 1) / 2); // 0.55..1
-              const zIndex = 1000 + Math.round(depth * 1000);
-              const isOpen = openIndex === index;
-
-              return (
-                <div
-                  key={index}
-                  onClick={() =>
-                    setOpenIndex((prev) => (prev === index ? null : index))
-                  }
-                  className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2
-                               flex flex-col items-center text-gray-600 hover:text-red-500 cursor-pointer max-[1000px]:scale-70 max-[700px]:scale-55"
-                  style={{
-                    transformStyle: "preserve-3d",
-                    // photo look at the camera: rotateY(-worldAngle)
-                    transform: `
-                        rotateY(${worldAngle}deg)
-                        translateZ(${RADIUS}px)
-                        rotateY(${-worldAngle}deg)
-                        scale(${scale})
-                      `,
-                    transition: "transform 700ms ease, opacity 300ms ease",
-                    opacity,
-                    zIndex,
-                  }}
-                >
-                  {/* Transparent PNG, no background/shadow */}
-                  <img src={src} alt={labels[index]} className="h-19 w-19" />
-                  <span className="text-[8px]">{labels[index]}</span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-        <div>
-          {/* Right Arrow (always on top) --------------------------------------------------------------------------------*/}
-
-          <button
-            onClick={() => setRotationY((prev) => prev + STEP)}
-            className="absolute right-2 z-50 text-gray-500 hover:text-red-700"
-            aria-label="Next"
-          >
-            <FontAwesomeIcon icon={faChevronRight} className="w-10 h-10" />
-          </button>
-        </div>
       </div>
     </header>
   );
