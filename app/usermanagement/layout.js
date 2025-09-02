@@ -40,7 +40,7 @@ export default function UserLayout({ children }) {
           </button>
         </nav>
       </div>
-      <main className="p-6 h-screen bg-[url(/bgimage.jpg)] bg-full">
+      <main className="p-6 min-h-screen bg-[url(/bgfoto3.jpg)] bg-cover">
         {children}
       </main>
     </div>

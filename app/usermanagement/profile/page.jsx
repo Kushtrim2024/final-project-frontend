@@ -81,7 +81,6 @@ export default function ProfilePage() {
         );
         if (res.ok) {
           const data = await res.json();
-          // backend'ine göre: setDefaultAddress(data.address || data);
           setDefaultAddress(data);
         }
       } finally {
@@ -97,56 +96,30 @@ export default function ProfilePage() {
     setMsg("");
 
     const fd = new FormData();
-    fd.append("avatar", photoFile);
-    fd.append("photo", photoFile);
+    fd.append("profilePicture", photoFile); // profilePicture
 
-    let success = false;
     try {
-      const res1 = await fetch("http://localhost:5517/user/profile/avatar", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
+      const res = await fetch(`http://localhost:5517/user/profile/photo`, {
+        method: "PUT",
+        headers: { Authorization: `Bearer ${token}` }, // ❌ohne Content-Type
         body: fd,
       });
-      if (res1.ok) {
-        const data = await res1.json();
-        const newUrl =
-          data?.avatarUrl || data?.photoUrl || data?.avatar || data?.photo;
-        setUser((u) => ({
-          ...u,
-          avatarUrl: newUrl ?? u?.avatarUrl,
-          photoUrl: newUrl ?? u?.photoUrl,
-          photo: newUrl ?? u?.photo,
-        }));
-        success = true;
-        setMsg("Photo updated.");
-      }
-    } catch {}
 
-    if (!success) {
-      try {
-        const res2 = await fetch("http://localhost:5517/user/profile/update", {
-          method: "PUT",
-          headers: { Authorization: `Bearer ${token}` },
-          body: fd,
-        });
-        if (!res2.ok) throw new Error(`Upload failed (${res2.status})`);
-        const data = await res2.json();
-        const newUrl =
-          data?.avatarUrl || data?.photoUrl || data?.avatar || data?.photo;
-        setUser((u) => ({
-          ...u,
-          avatarUrl: newUrl ?? u?.avatarUrl,
-          photoUrl: newUrl ?? u?.photoUrl,
-          photo: newUrl ?? u?.photo,
-        }));
-        setMsg("Photo updated.");
-      } catch (e) {
-        setMsg(e.message || "Could not upload photo.");
-      }
+      if (!res.ok) throw new Error(`Upload failed (${res.status})`);
+      const data = await res.json();
+
+      setUser((u) => ({
+        ...u,
+        profilePicture: data.url,
+      }));
+
+      setMsg("✅ Photo updated.");
+    } catch (e) {
+      setMsg(e.message || "Could not upload photo.");
+    } finally {
+      setUploading(false);
+      setPhotoFile(null);
     }
-
-    setUploading(false);
-    setPhotoFile(null);
   };
 
   // UI states
@@ -183,14 +156,13 @@ export default function ProfilePage() {
 
   const currentPhotoSrc =
     photoPreview ||
+    user?.profilePicture ||
     user?.avatarUrl ||
     user?.photoUrl ||
-    user?.avatar ||
-    user?.photo ||
     "/avatar.jpg";
 
   return (
-    <div className="max-w-2xl mx-auto mt-10 bg-white shadow rounded-lg p-6">
+    <div className="max-w-lg mx-auto mt-10 shadow rounded-lg p-6 bg-white/80">
       <h1 className="text-2xl font-bold mb-4 text-gray-900">My Profile</h1>
 
       {msg && (
@@ -198,29 +170,51 @@ export default function ProfilePage() {
           {msg}
         </div>
       )}
-
       {/* Photo + uploader */}
-      <div className="flex items-start mb-6 flex-col">
+      <div className="flex items-start mb-6 flex-col gap-3">
         <img
           src={currentPhotoSrc}
           alt="Profile"
-          className="w-24 h-24 rounded-full object-cover"
+          className="w-24 h-24 rounded-full object-cover border"
           onError={(e) => {
             e.currentTarget.src = "/avatar.jpg";
           }}
         />
-        <div className="flex flex-col">
-          <label className="block text-xs text-gray-700 px-1">
-            Change profile photo
-          </label>
 
+        {/* Hidden input */}
+        <input
+          id="photoInput"
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={(e) => {
+            if (e.target.files && e.target.files[0]) {
+              setPhotoFile(e.target.files[0]);
+              setPhotoPreview(URL.createObjectURL(e.target.files[0]));
+            }
+          }}
+        />
+
+        {/* Custom button instead of default input */}
+        <div className="flex gap-2">
           <button
-            onClick={uploadPhoto}
-            disabled={!photoFile || uploading}
-            className="mt-1 bg-purple-400 text-sm px-1 py-1 rounded hover:bg-purple-700 disabled:opacity-60 w-30"
+            type="button"
+            onClick={() => document.getElementById("photoInput").click()}
+            className="bg-blue-300 text-white text-sm px-3 py-1 rounded hover:bg-blue-600 disabled:opacity-60"
           >
-            {uploading ? "Uploading..." : "Upload Photo"}
+            Select New Photo
           </button>
+
+          {/* Upload button appears only if file selected */}
+          {photoFile && (
+            <button
+              onClick={uploadPhoto}
+              disabled={uploading}
+              className="bg-purple-300 text-white text-sm px-3 py-1 rounded hover:bg-purple-600 disabled:opacity-60"
+            >
+              {uploading ? "Uploading..." : "Upload Photo"}
+            </button>
+          )}
         </div>
       </div>
 
@@ -249,29 +243,25 @@ export default function ProfilePage() {
       </div>
 
       {/* Default address */}
-      <div className="mt-8  pt-6">
+      <div className="mt-8 pt-6">
         <h2 className="text-lg font-semibold mb-3 text-gray-900">
-          Default Address
+          My Default Address
         </h2>
 
         {addrLoading ? (
           <p className="text-gray-800 mt-1">Loading address…</p>
         ) : defaultAddress ? (
           <div className="mt-1 mb-3 block w-full rounded-md border-gray-300 shadow-sm p-2 border">
-            <p className="font-medium">
-              {defaultAddress.title || "My Address"}
-            </p>
-            <div className="flex gap-2">
+            <p className="font-medium">{defaultAddress.title}</p>
+            <div className="flex flex-col text-sm text-gray-700">
+              {defaultAddress.name && <p>{defaultAddress.name}</p>}
+              {defaultAddress.phone && <p>{defaultAddress.phone}</p>}
               <p>
-                {defaultAddress.name && <p>{defaultAddress.name}</p>}
-                {defaultAddress.phone && <p>{defaultAddress.phone}</p>}
+                {defaultAddress.street}
+                {defaultAddress.street2 ? `, ${defaultAddress.street2}` : ""}
               </p>
               <p>
-                {defaultAddress.line1}
-                {defaultAddress.line2 ? `, ${defaultAddress.line2}` : ""}
-              </p>
-              <p>
-                {defaultAddress.postalCode}, {defaultAddress.city},
+                {defaultAddress.postalCode}, {defaultAddress.city}
                 {defaultAddress.state ? `, ${defaultAddress.state}` : ""}
               </p>
               <p>{defaultAddress.country}</p>

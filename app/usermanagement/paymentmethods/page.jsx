@@ -11,15 +11,19 @@ export default function PaymentMethodsPage() {
     details: "",
   });
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [token, setToken] = useState(null);
+  const [userId, setUserId] = useState(null);
   const dropdownRef = useRef(null);
-
-  const token =
-    typeof window !== "undefined" ? localStorage.getItem("token") : null;
-  const userId =
-    typeof window !== "undefined" ? localStorage.getItem("userId") : null;
 
   const creditCardOptions = ["Visa", "MasterCard"];
   const paymentOptions = ["Credit Card", "PayPal", "Apple Pay", "Google Pay"];
+
+  const mapTypeToBackend = {
+    "Credit Card": "card",
+    PayPal: "paypal",
+    "Apple Pay": "applepay",
+    "Google Pay": "googlepay",
+  };
 
   const getIcon = (type, cardType) => {
     if (type === "Credit Card" && cardType) {
@@ -44,27 +48,34 @@ export default function PaymentMethodsPage() {
     }
   };
 
-  const mapTypeToBackend = {
-    "Credit Card": "card",
-    PayPal: "paypal",
-    "Apple Pay": "applepay",
-    "Google Pay": "googlepay",
-  };
+  // Clientseitig Token/UserId laden
+  useEffect(() => {
+    setToken(localStorage.getItem("token"));
+    setUserId(localStorage.getItem("userId"));
+  }, []);
 
-  // Load payment methods
+  // Load payment methods from cart
   useEffect(() => {
     if (!token || !userId) return;
 
     fetch(`http://localhost:5517/cart/${userId}`, {
       method: "GET",
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
+      headers: { Authorization: `Bearer ${token}` },
     })
       .then((res) => res.json())
       .then((data) => {
-        if (data?.cart?.paymentMethods) {
-          setPaymentMethods(data.cart.paymentMethods);
+        if (data?.cart?.paymentMethod) {
+          // Das Backend speichert nur eine Methode pro Cart
+          const method = Object.keys(mapTypeToBackend).find(
+            (k) => mapTypeToBackend[k] === data.cart.paymentMethod
+          );
+          setPaymentMethods([
+            {
+              type: data.cart.paymentMethod,
+              details: "", // Backend speichert keine Details
+              cardType: method === "Credit Card" ? "visa" : undefined,
+            },
+          ]);
         }
       })
       .catch((err) => console.error("Error loading payment methods:", err));
@@ -81,9 +92,15 @@ export default function PaymentMethodsPage() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  // Add new payment method (Backend kompatibel)
   const handleAdd = async () => {
-    if (!newMethod.details.trim()) {
-      alert("Bitte Zahlungsdetails eingeben!");
+    if (!newMethod.type) {
+      alert("Bitte Zahlungsmethode auswählen!");
+      return;
+    }
+
+    if (!userId || !token) {
+      alert("UserId oder Token fehlt! Bitte neu einloggen.");
       return;
     }
 
@@ -96,39 +113,50 @@ export default function PaymentMethodsPage() {
         },
         body: JSON.stringify({
           userId,
-          paymentMethod: mapTypeToBackend[newMethod.type],
-          cardType:
-            newMethod.type === "Credit Card" ? newMethod.cardType : undefined,
-          details: newMethod.details,
+          paymentMethod: mapTypeToBackend[newMethod.type], // nur das, was das Backend erwartet
         }),
       });
 
-      if (!res.ok) throw new Error("Fehler beim Speichern!");
-
       const data = await res.json();
-      setPaymentMethods(data.cart.paymentMethods || []);
+      console.log("Backend response:", res.status, data);
+
+      if (!res.ok) {
+        alert(data.message || "Fehler beim Speichern!");
+        return;
+      }
+
+      // Frontend State aktualisieren
+      setPaymentMethods([
+        {
+          type: mapTypeToBackend[newMethod.type],
+          details: newMethod.details,
+          cardType:
+            newMethod.type === "Credit Card" ? newMethod.cardType : undefined,
+        },
+      ]);
       setNewMethod({ type: "Credit Card", cardType: "visa", details: "" });
-      alert("Payment method added!");
+      alert("Payment method saved!");
     } catch (err) {
       console.error(err);
       alert("Fehler beim Hinzufügen!");
     }
   };
 
-  const handleDelete = (id) => {
-    setPaymentMethods(paymentMethods.filter((m) => m.id !== id));
+  // Delete payment method (Frontend-Update, Backend nicht notwendig)
+  const handleDelete = () => {
+    setPaymentMethods([]);
     alert("Payment method removed!");
   };
 
   return (
-    <div className="max-w-lg mx-auto mt-10 bg-white shadow-lg rounded-lg p-6 text-gray-800">
+    <div className="max-w-lg mx-auto mt-10 bg-white/80 shadow-lg rounded-lg p-6 text-gray-800">
       <h1 className="text-2xl font-bold mb-4">My Payment Methods</h1>
 
       <div className="space-y-4 mb-6">
         {paymentMethods.length === 0 && <p>No payment methods saved.</p>}
-        {paymentMethods.map((method) => (
+        {paymentMethods.map((method, index) => (
           <div
-            key={method.id}
+            key={index}
             className="flex justify-between items-center bg-gray-50 p-3 rounded border"
           >
             <div className="flex items-center gap-3">
@@ -141,13 +169,15 @@ export default function PaymentMethodsPage() {
               <div>
                 <p className="font-semibold">{method.type}</p>
                 <p className="text-sm text-gray-600">
-                  {method.details}{" "}
-                  {method.cardType ? `(${method.cardType.toUpperCase()})` : ""}
+                  {method.type === "card"
+                    ? `**** **** **** ${method.details}`
+                    : method.details}
+                  {method.cardType ? ` (${method.cardType.toUpperCase()})` : ""}
                 </p>
               </div>
             </div>
             <button
-              onClick={() => handleDelete(method.id)}
+              onClick={() => handleDelete(index)}
               className="text-red-500 hover:text-red-700"
             >
               Remove
@@ -156,7 +186,7 @@ export default function PaymentMethodsPage() {
         ))}
       </div>
 
-      {/* Custom Dropdown */}
+      {/* Add new payment method */}
       <div className="border-t pt-4">
         <h2 className="text-lg font-semibold mb-2">Add New Payment Method</h2>
 
@@ -218,9 +248,7 @@ export default function PaymentMethodsPage() {
             setNewMethod({ ...newMethod, details: e.target.value })
           }
           placeholder={
-            newMethod.type === "Credit Card"
-              ? "Card number (will be masked)"
-              : "Account email"
+            newMethod.type === "Credit Card" ? "Card number" : "Account email"
           }
           className="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border mb-3"
         />
