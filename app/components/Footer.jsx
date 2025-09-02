@@ -1,160 +1,276 @@
 "use client";
-import React from "react";
+
 import Link from "next/link";
-import "../styles/footer.css";
+import Image from "next/image";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
-  faHeadset,
-  faAt,
-  faInfoCircle,
-} from "@fortawesome/free-solid-svg-icons";
-
-import {
-  faGithub,
+  faApplePay,
+  faGooglePay,
+  faPaypal,
+  faXTwitter,
+  faFacebookF,
   faInstagram,
-  faTwitter,
-  faLinkedin,
-  faYoutube,
+  faLinkedinIn,
 } from "@fortawesome/free-brands-svg-icons";
 
 export default function Footer() {
-  console.log(typeof window === "undefined" ? "server" : "client");
   return (
-    <footer className="bg-gray-800 text-white w-full">
-      <div className="footer-container ">
-        {/* Link Section */}
-        <section className="col-span-3 grid grid-cols-3 gap-1 place-items-center m-0 p-0">
-          <div className="card-box">
-            <div className="flex row gap-2 items-center">
-              <FontAwesomeIcon icon={faHeadset} className="h-5 w-5" />
+    <footer className="mt-20 bg-slate-950 text-slate-200">
+      {/* top grid */}
+      <div className="mx-auto grid max-w-6xl grid-cols-1 gap-10 px-4 py-12 sm:grid-cols-2 lg:grid-cols-4">
+        {/* Brand / Payment */}
+        <div>
+          <Link href="/" className="flex items-center gap-3">
+            <Image
+              src="/logow.png"
+              alt="Liefrik"
+              width={144}
+              height={144}
+              className="h-17 w-17 rounded-md object-contain"
+            />
+          </Link>
+          <p className="mt-3 text-sm text-white/80">
+            Fast delivery with a strong network of restaurants. Discover great
+            food near you.
+          </p>
 
-              <h2 className="text-lg font-semibold">CUSTOMER SERVICE</h2>
-            </div>
-            <div>
-              <hr className="my-2 border-gray-500" />
-              <ul>
-                <li>
-                  <Link href="/footerinfo/contact">Contact Form</Link>{" "}
-                </li>
-                <li>
-                  <Link href="/footerinfo/return">Shipping & Returns</Link>
-                </li>
-                <li>
-                  <Link href="/footerinfo/faq">FAQ</Link>
-                </li>
-                <li>
-                  <Link href="/footerinfo/newsletter">Newsletter</Link>
-                </li>
-              </ul>
-            </div>
+          {/* payment icons */}
+          <div className="mt-4 flex items-center gap-4 text-white ml-[-0.2rem] ">
+            <Link
+              href="https://www.paypal.com"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <FontAwesomeIcon
+                icon={faPaypal}
+                className="text-2xl hover:text-blue-400 transition"
+              />
+            </Link>
+            <Link
+              href="https://pay.google.com"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <FontAwesomeIcon
+                icon={faGooglePay}
+                className="text-4xl hover:text-green-400 transition"
+              />
+            </Link>
+            <Link
+              href="https://www.apple.com/apple-pay/"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <FontAwesomeIcon
+                icon={faApplePay}
+                className="text-4xl hover:text-yellow-400 transition"
+              />
+            </Link>
           </div>
+        </div>
 
-          <div className="card-box">
-            <div className="flex row gap-2 items-center">
-              <FontAwesomeIcon icon={faHeadset} className="h-5 w-5" />
-              <h2 className="text-lg font-semibold">INFORMATION</h2>
-            </div>
-            <div>
-              <hr className="my-2 border-gray-500" />
-              <ul>
-                <li>
-                  <Link href="/footerinfo/about">About Us</Link>
-                </li>
-                <li>
-                  <Link href="/footerinfo/careers">Careers</Link>
-                </li>
-                <li>
-                  <Link href="/footerinfo/rateUs">Rate Us</Link>
-                </li>
-
-                <li>
-                  <Link href="/footerinfo/payment">Shipping and Payment</Link>
-                </li>
-                <li>
-                  <Link href="/footerinfo/cookie">Cookie Settings</Link>
-                </li>
-              </ul>
-            </div>
-          </div>
-
-          <div className="card-box">
-            <div className="flex row gap-2 items-center">
-              <FontAwesomeIcon icon={faInfoCircle} className="h-5 w-5" />
-              <h2 className="text-lg font-semibold">LEGAL NOTICE</h2>
-            </div>
-            <div>
-              <hr className="my-2 border-gray-500" />
-              <ul>
-                <li>
-                  <Link href="/footerinfo/impressum">Imprint</Link>
-                </li>
-                <li>
-                  <Link href="/footerinfo/policy">Privacy Policy</Link>
-                </li>
-
-                <li>
-                  <Link href="/footerinfo/terms">Terms and Conditions</Link>
-                </li>
-              </ul>
-            </div>
-            <img src="/logo.png" alt="logo" className="footer-logo  " />
-          </div>
-        </section>
-
-        {/* Social Section---------------------------------- */}
-        <section className="col-span-1 flex flex-col items-center justify-between ">
-          <div className="card-box2 ">
-            <h2 className="text-lg font-semibold mb-2">FOLLOW US</h2>
-            <div className="social-icons">
+        {/* Partner */}
+        <div>
+          <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-300">
+            Partner with us
+          </h3>
+          <ul className="mt-4 space-y-2 text-sm">
+            <li>
               <Link
-                href="https://github.com/Kushtrim2024/final-project-frontend"
-                target="_blank"
+                href="/footerinfo/couriers"
+                className="hover:text-yellow-400"
               >
-                <FontAwesomeIcon icon={faGithub} className="h-5 w-5 pr-0.5" />
+                For couriers
               </Link>
-              <Link href="https://www.instagram.com/" target="_blank">
-                <FontAwesomeIcon
-                  icon={faInstagram}
-                  className="h-5 w-5 pr-0.5"
-                />
-              </Link>
-              <Link href="https://x.com/" target="_blank">
-                <FontAwesomeIcon icon={faTwitter} className="h-5 w-5 pr-0.5" />
-              </Link>
+            </li>
+            <li>
               <Link
-                href="https://www.youtube.com/watch?v=OYCZNV38isg "
-                target="_blank"
+                href="/footerinfo/merchants"
+                className="hover:text-yellow-400"
               >
-                <FontAwesomeIcon icon={faYoutube} className="h-5 w-5 pr-0.5" />
+                For merchants
               </Link>
-
-              <Link href="https://www.linkedin.com/" target="_blank">
-                <FontAwesomeIcon
-                  icon={faLinkedin}
-                  className="h-5 w-5 pr-0.5 mt-3"
-                />
+            </li>
+            <li>
+              <Link
+                href="/footerinfo/affiliates"
+                className="hover:text-yellow-400"
+              >
+                For affiliates
               </Link>
-            </div>
-            <div>
-              <div className="info">
-                <FontAwesomeIcon icon={faAt} className="h-5 w-5 pr-5 pt-1" />
-                <Link href="/contact">info@liefrik.de</Link>
-              </div>
-            </div>
+            </li>
+            <li>
+              <Link
+                href="/footerinfo/contact"
+                className="hover:text-yellow-400"
+              >
+                Contact
+              </Link>
+            </li>
+          </ul>
+        </div>
 
-            {/*---Workin Hours-------------------------- */}
-            <div className="absolute bottom-14 right-46 rotate-90 w-40 h-10 b text-center">
-              <p>Working Hours</p>
-            </div>
-            <div className="workinghours">
-              <p>Montag – Freitag </p>
-              <p>09:00 – 18:00 Uhr</p>
-              <p>Samstags </p>
-              <p>09:00 – 12:00 Uhr</p>
-            </div>
-            {/*------------------------------------------------------- */}
+        {/* Company */}
+        <div>
+          <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-300">
+            Company
+          </h3>
+          <ul className="mt-4 space-y-2 text-sm">
+            <li>
+              <Link href="/footerinfo/about" className="hover:text-yellow-400">
+                About us
+              </Link>
+            </li>
+            <li>
+              <Link href="/footerinfo/jobs" className="hover:text-yellow-400">
+                Jobs
+              </Link>
+            </li>
+            <li>
+              <Link
+                href="/footerinfo/security"
+                className="hover:text-yellow-400"
+              >
+                Security
+              </Link>
+            </li>
+            <li>
+              <Link
+                href="/footerinfo/sustainability"
+                className="hover:text-yellow-400"
+              >
+                Sustainability
+              </Link>
+            </li>
+            <li>
+              <Link
+                href="/footerinfo/investors"
+                className="hover:text-yellow-400"
+              >
+                Investors
+              </Link>
+            </li>
+          </ul>
+        </div>
+
+        {/* Useful + Social */}
+        <div>
+          <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-300">
+            Useful links
+          </h3>
+          <ul className="mt-4 space-y-2 text-sm">
+            <li>
+              <Link href="/footerinfo/help" className="hover:text-yellow-400">
+                Help Center
+              </Link>
+            </li>
+            <li>
+              <Link href="/footerinfo/terms" className="hover:text-yellow-400">
+                Terms of Service
+              </Link>
+            </li>
+            <li>
+              <Link
+                href="/footerinfo/privacy"
+                className="hover:text-yellow-400"
+              >
+                Privacy Policy
+              </Link>
+            </li>
+            <li>
+              <Link
+                href="/footerinfo/cookies"
+                className="hover:text-yellow-400"
+              >
+                Cookie Policy
+              </Link>
+            </li>
+            <li>
+              <Link href="/footerinfo/cities" className="hover:text-yellow-400">
+                All cities
+              </Link>
+            </li>
+          </ul>
+
+          {/* Social icons */}
+          <div className="mt-6 flex items-center gap-4 ml-[-0.1rem]">
+            <Link
+              href="https://instagram.com"
+              aria-label="Instagram"
+              target="_blank"
+              rel="noopener noreferrer"
+              prefetch={false}
+            >
+              <FontAwesomeIcon
+                icon={faInstagram}
+                className="text-xl hover:text-pink-500 transition"
+              />
+            </Link>
+            <Link
+              href="https://x.com"
+              aria-label="X"
+              target="_blank"
+              rel="noopener noreferrer"
+              prefetch={false}
+            >
+              <FontAwesomeIcon
+                icon={faXTwitter}
+                className="text-xl hover:text-blue-400 transition"
+              />
+            </Link>
+            <Link
+              href="https://facebook.com"
+              aria-label="Facebook"
+              target="_blank"
+              rel="noopener noreferrer"
+              prefetch={false}
+            >
+              <FontAwesomeIcon
+                icon={faFacebookF}
+                className="text-xl hover:text-blue-500 transition"
+              />
+            </Link>
+            <Link
+              href="https://linkedin.com"
+              aria-label="LinkedIn"
+              target="_blank"
+              rel="noopener noreferrer"
+              prefetch={false}
+            >
+              <FontAwesomeIcon
+                icon={faLinkedinIn}
+                className="text-2xl hover:text-blue-600 transition"
+              />
+            </Link>
           </div>
-        </section>
+        </div>
+      </div>
+
+      {/* bottom bar */}
+      <div className="border-t border-white/10">
+        <div className="mx-auto pr-10 flex max-w-6xl flex-col items-center justify-between gap-3 px-4 py-4 text-xs text-slate-400 sm:flex-row">
+          <p>
+            © {new Date().getFullYear()} Liefrik. All rights reserved.This is a
+            student project. It has no commercial purpose.
+          </p>
+          <div className="flex items-center gap-4">
+            <Link
+              href="/footerinfo/accessibility"
+              className="hover:text-slate-200"
+            >
+              Accessibility
+            </Link>
+            <Link href="/footerinfo/imprint" className="hover:text-slate-200">
+              Imprint
+            </Link>
+            <Link href="/footerinfo/privacy" className="hover:text-slate-200">
+              Privacy
+            </Link>
+            <Link href="/footerinfo/terms" className="hover:text-slate-200">
+              Terms
+            </Link>
+          </div>
+        </div>
       </div>
     </footer>
   );
