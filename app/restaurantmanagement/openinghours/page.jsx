@@ -109,7 +109,7 @@ export default function OpeningHoursPage() {
   if (loading) return <p className="p-4">Loading opening hours...</p>;
 
   return (
-    <div className="max-w-2xl mx-auto p-4 border-2 border-gray-300 rounded-lg bg-white shadow-md text-gray-800">
+    <div className="max-w-2xl mx-auto p-4 border-2 border-gray-300 rounded-lg bg-white shadow-md text-gray-800 ">
       <h2 className="text-xl font-bold mb-4">Opening Hours Setting</h2>
       <p className="mb-4">Manage opening hours in the system.</p>
 
@@ -161,7 +161,7 @@ export default function OpeningHoursPage() {
       </form>
 
       {restaurant && (
-        <div className="mt-6 p-4 border rounded bg-gray-50">
+        <div className="mt-6 p-4 border rounded bg-gray-100">
           <h3 className="text-lg font-bold mb-2">Your Restaurant Data</h3>
           <p>
             <strong>Name:</strong> {restaurant.restaurantName}
