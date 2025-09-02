@@ -65,7 +65,7 @@ function PartnerPage() {
         localStorage.setItem("role", "restaurant");
       }
       setLoginMsg("Logged in successfully.");
-      router.push("/restaurantmanagement");
+      router.push("/restaurantmanagement/menumanagement");
     } catch (err) {
       setLoginMsg(err.message || "Could not log in.");
     } finally {

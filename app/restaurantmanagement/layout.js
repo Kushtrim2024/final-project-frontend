@@ -23,7 +23,7 @@ export default function Navbar({ children }) {
       setIsLoggedIn(false);
       router.push("/login");
     } else {
-      router.push("/login");
+      router.push("/partnerwithus");
     }
   };
 
@@ -58,8 +58,8 @@ export default function Navbar({ children }) {
             My Profile
           </Link>
           <Link
-            href="/restaurantmanagement/restaurants"
-            className={linkClasses("/restaurantmanagement/restaurants")}
+            href="/restaurantmanagement/menumanagement"
+            className={linkClasses("/restaurantmanagement/menumanagement")}
           >
             Menu Management
           </Link>
@@ -127,8 +127,8 @@ export default function Navbar({ children }) {
             {/* Links */}
             <div className="mt-10 flex flex-col space-y-2">
               <Link
-                href="/restaurantmanagement/restaurants"
-                className={linkClasses("/restaurantmanagement/restaurants")}
+                href="/restaurantmanagement/menumanagement"
+                className={linkClasses("/restaurantmanagement/menumanagement")}
                 onClick={() => setMenuOpen(false)}
               >
                 Menu Management
