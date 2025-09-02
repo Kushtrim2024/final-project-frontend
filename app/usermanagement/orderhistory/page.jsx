@@ -15,18 +15,27 @@ export default function OrderHistoryPage() {
   useEffect(() => {
     const fetchOrders = async () => {
       try {
-        const res = await fetch("http://localhost:5518/orders/history", {
+        const token =
+          typeof window !== "undefined" ? localStorage.getItem("token") : null;
+
+        if (!token) {
+          console.warn("No token found!");
+          setLoading(false);
+          return;
+        }
+
+        const res = await fetch("http://localhost:5517/orders/history", {
           headers: {
-            Authorization: `Bearer ${localStorage.getItem("token")}`, // Token Login
+            Authorization: `Bearer ${token}`,
           },
         });
 
         if (!res.ok) {
-          throw new Error("Failed to fetch orders");
+          throw new Error(`Failed to fetch orders: ${res.status}`);
         }
 
         const data = await res.json();
-        setOrders(data); //Order from BE
+        setOrders(Array.isArray(data) ? data : []); // مطمئن بشیم همیشه آرایه‌ست
       } catch (error) {
         console.error("Error fetching orders:", error);
       } finally {
@@ -52,7 +61,7 @@ export default function OrderHistoryPage() {
           {orders.map((order) => (
             <div
               key={order._id}
-              className="bg-white border rounded-lg shadow-sm p-4"
+              className="bg-white/80 border rounded-xl shadow-sm p-4 hover:shadow-md transition"
             >
               {/* Header */}
               <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-3">
@@ -61,7 +70,9 @@ export default function OrderHistoryPage() {
                     {order.restaurantName || "Unknown Restaurant"}
                   </p>
                   <p className="text-sm text-gray-500">
-                    {new Date(order.createdAt).toLocaleDateString()}
+                    {order.createdAt
+                      ? new Date(order.createdAt).toLocaleDateString()
+                      : "—"}
                   </p>
                 </div>
                 <span
@@ -69,23 +80,28 @@ export default function OrderHistoryPage() {
                     statusColors[order.status] || "bg-gray-100 text-gray-700"
                   }`}
                 >
-                  {order.status}
+                  {order.status || "Unknown"}
                 </span>
               </div>
 
               {/* Items */}
-              <div className="text-sm text-gray-600 mb-3">
-                {order.cart.map((item, index) => (
-                  <p key={index}>
-                    {item.quantity}× {item.menuItemName || "Item"}
-                  </p>
-                ))}
+              <div className="text-sm text-gray-600 mb-3 space-y-1">
+                {order.cart?.length > 0 ? (
+                  order.cart.map((item, index) => (
+                    <p key={index}>
+                      {item.quantity}× {item.menuItemName || "Item"}
+                    </p>
+                  ))
+                ) : (
+                  <p>No items in this order.</p>
+                )}
               </div>
 
               {/* Footer */}
               <div className="flex items-center justify-between">
                 <p className="font-semibold text-gray-800">
-                  Total: €{order.totalPrice?.toFixed(2) || 0}
+                  Total: €
+                  {order.totalPrice ? order.totalPrice.toFixed(2) : "0.00"}
                 </p>
                 <button className="text-orange-500 hover:underline text-sm">
                   View Details

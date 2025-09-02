@@ -327,7 +327,7 @@ export default function AddressPage() {
 
   // --- Render UI ---
   return (
-    <div className="min-h-screen bg-white">
+    <div className="max-w-2xl mx-auto mt-10 bg-white/80 shadow rounded-lg p-6">
       <div className="max-w-3xl mx-auto p-6">
         <h1 className="text-2xl font-bold text-gray-900 mb-6">My Addresses</h1>
 
@@ -345,7 +345,7 @@ export default function AddressPage() {
             return (
               <div
                 key={rowKey}
-                className={`border rounded-lg p-4 shadow-sm bg-white ${
+                className={`border rounded-lg p-4 shadow-sm bg-white/60 ${
                   address.isDefault ? "border-orange-400" : "border-gray-200"
                 }`}
               >

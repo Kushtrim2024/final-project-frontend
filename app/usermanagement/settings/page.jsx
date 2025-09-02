@@ -5,26 +5,24 @@ import { useEffect, useState } from "react";
 const API_BASE = "http://localhost:5517";
 
 export default function SettingsPage() {
-  // Auth
   const [token, setToken] = useState(null);
   const [ready, setReady] = useState(false);
 
-  // Form
   const [form, setForm] = useState({
     name: "",
     email: "",
     phone: "",
     country: "",
-    password: "",
-    confirmPassword: "",
+    currentPassword: "",
+    newPassword: "",
+    confirmNewPassword: "",
   });
 
-  // UI state
   const [loading, setLoading] = useState(true);
   const [addrLoading, setAddrLoading] = useState(false);
   const [msg, setMsg] = useState("");
 
-  // read token
+  // Read token
   useEffect(() => {
     const t =
       (typeof window !== "undefined" &&
@@ -36,7 +34,7 @@ export default function SettingsPage() {
     setReady(true);
   }, []);
 
-  // load profile
+  // Load profile
   useEffect(() => {
     if (!token) return;
     (async () => {
@@ -63,7 +61,7 @@ export default function SettingsPage() {
     })();
   }, [token]);
 
-  // load default address (nur country)
+  // Load default address (nur country)
   useEffect(() => {
     if (!token) return;
     (async () => {
@@ -85,7 +83,6 @@ export default function SettingsPage() {
     })();
   }, [token]);
 
-  // Input change
   const onChange = (e) => {
     const { name, value } = e.target;
     setForm((p) => ({ ...p, [name]: value }));
@@ -96,11 +93,7 @@ export default function SettingsPage() {
     e.preventDefault();
     setMsg("");
 
-    if (form.password && form.password !== form.confirmPassword) {
-      setMsg("❌ Passwords do not match.");
-      return;
-    }
-
+    // 1. Update user basic info
     try {
       const res = await fetch(`${API_BASE}/user/profile/update`, {
         method: "PUT",
@@ -113,16 +106,46 @@ export default function SettingsPage() {
           email: form.email,
           phone: form.phone,
           address: form.country ? { country: form.country } : undefined,
-          ...(form.password ? { password: form.password } : {}), // Passwort nur schicken wenn gesetzt
         }),
       });
-      if (!res.ok) throw new Error(`Save failed (${res.status})`);
-      await res.json().catch(() => null);
-      setMsg("✅ Settings saved.");
-      setForm((f) => ({ ...f, password: "", confirmPassword: "" })); // Felder leeren
+      if (!res.ok) throw new Error(`Profile update failed (${res.status})`);
     } catch (e) {
-      setMsg(e.message || "Could not save settings.");
+      setMsg(e.message || "Could not update profile.");
+      return;
     }
+
+    // 2. If password change requested
+    if (form.newPassword) {
+      if (form.newPassword !== form.confirmNewPassword) {
+        setMsg("❌ New passwords do not match.");
+        return;
+      }
+      try {
+        const res = await fetch(`${API_BASE}/user/profile/update-password`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            currentPassword: form.currentPassword,
+            newPassword: form.newPassword,
+          }),
+        });
+        if (!res.ok) throw new Error(`Password update failed (${res.status})`);
+      } catch (e) {
+        setMsg(e.message || "Could not update password.");
+        return;
+      }
+    }
+
+    setMsg("✅ Settings saved.");
+    setForm((f) => ({
+      ...f,
+      currentPassword: "",
+      newPassword: "",
+      confirmNewPassword: "",
+    }));
   };
 
   // Delete Account
@@ -149,11 +172,9 @@ export default function SettingsPage() {
     }
   };
 
-  // UI States
-  if (!ready) {
-    return <p className="mt-10 text-center text-gray-900">Preparing…</p>;
-  }
-  if (!token) {
+  // UI
+  if (!ready) return <p className="mt-10 text-center">Preparing…</p>;
+  if (!token)
     return (
       <div className="max-w-md mx-auto mt-16 p-6 rounded-xl shadow bg-white">
         <p className="text-lg font-semibold text-gray-900">Login required</p>
@@ -165,68 +186,55 @@ export default function SettingsPage() {
         </a>
       </div>
     );
-  }
-  if (loading) {
-    return <p className="mt-10 text-center text-gray-900">Loading…</p>;
-  }
+  if (loading) return <p className="mt-10 text-center">Loading…</p>;
 
   return (
-    <div className="max-w-3xl mx-auto p-6">
-      <h1 className="text-2xl font-bold text-gray-800 mb-6">Settings</h1>
+    <div className="max-w-lg mx-auto p-6">
+      <h1 className="text-2xl font-bold mb-6">Settings</h1>
 
-      {msg && (
-        <div className="mb-4 text-sm p-3 rounded bg-gray-100 text-gray-900">
-          {msg}
-        </div>
-      )}
+      {msg && <div className="mb-4 text-sm p-3 rounded bg-gray-100">{msg}</div>}
 
       <form
         onSubmit={onSubmit}
-        className="bg-white shadow-sm rounded-lg p-6 space-y-6"
+        className="bg-white/80 shadow-sm rounded-lg p-6 space-y-6"
       >
         {/* Name */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Name
-          </label>
+          <label className="block text-sm font-medium mb-1">Name</label>
           <input
             name="name"
             value={form.name}
             onChange={onChange}
-            className="w-full pl-1 border-gray-300 py-1 rounded-lg shadow-sm focus:ring-orange-500 focus:border-orange-500 text-gray-800"
+            className="w-full border-gray-300 rounded-lg p-2 border"
           />
         </div>
 
         {/* Email */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Email
-          </label>
+          <label className="block text-sm font-medium mb-1">Email</label>
           <input
             type="email"
             name="email"
             value={form.email}
             onChange={onChange}
-            className="w-full pl-1 border-gray-300 py-1 rounded-lg shadow-sm focus:ring-orange-500 focus:border-orange-500 text-gray-800"
+            className="w-full border-gray-300 rounded-lg p-2 border"
           />
         </div>
 
         {/* Phone */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Phone
-          </label>
+          <label className="block text-sm font-medium mb-1">Phone</label>
           <input
             name="phone"
             value={form.phone}
             onChange={onChange}
-            className="w-full pl-1 border-gray-300 py-1 rounded-lg shadow-sm focus:ring-orange-500 focus:border-orange-500 text-gray-800"
+            className="w-full border-gray-300 rounded-lg p-2 border"
           />
         </div>
 
         {/* Country */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label className="block text-sm font-medium mb-1">
             Country {addrLoading && <span className="text-xs">(loading…)</span>}
           </label>
           <input
@@ -234,36 +242,49 @@ export default function SettingsPage() {
             value={form.country}
             onChange={onChange}
             placeholder="Deutschland"
-            className="w-full pl-1 border-gray-300 py-1 rounded-lg shadow-sm focus:ring-orange-500 focus:border-orange-500 text-gray-800"
+            className="w-full border-gray-300 rounded-lg p-2 border"
           />
         </div>
 
-        {/* Password */}
+        {/* Current Password */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            New Password
+          <label className="block text-sm font-medium mb-1">
+            Current Password
           </label>
           <input
             type="password"
-            name="password"
-            value={form.password}
+            name="currentPassword"
+            value={form.currentPassword}
             onChange={onChange}
-            className="w-full pl-1 border-gray-300 py-1 rounded-lg shadow-sm focus:ring-orange-500 focus:border-orange-500 text-gray-800"
+            className="w-full border-gray-300 rounded-lg p-2 border"
+            placeholder="Enter current password"
+          />
+        </div>
+
+        {/* New Password */}
+        <div>
+          <label className="block text-sm font-medium mb-1">New Password</label>
+          <input
+            type="password"
+            name="newPassword"
+            value={form.newPassword}
+            onChange={onChange}
+            className="w-full border-gray-300 rounded-lg p-2 border"
             placeholder="Enter new password"
           />
         </div>
 
         {/* Confirm Password */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label className="block text-sm font-medium mb-1">
             Confirm Password
           </label>
           <input
             type="password"
-            name="confirmPassword"
-            value={form.confirmPassword}
+            name="confirmNewPassword"
+            value={form.confirmNewPassword}
             onChange={onChange}
-            className="w-full pl-1 border-gray-300 py-1 rounded-lg shadow-sm focus:ring-orange-500 focus:border-orange-500 text-gray-800"
+            className="w-full border-gray-300 rounded-lg p-2 border"
             placeholder="Repeat new password"
           />
         </div>
@@ -273,13 +294,13 @@ export default function SettingsPage() {
           <button
             type="button"
             onClick={onDelete}
-            className="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 font-medium"
+            className="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600"
           >
             Delete Account
           </button>
           <button
             type="submit"
-            className="bg-orange-500 text-white px-4 py-2 rounded-lg hover:bg-orange-600 font-medium"
+            className="bg-orange-500 text-white px-4 py-2 rounded-lg hover:bg-orange-600"
           >
             Save Changes
           </button>
