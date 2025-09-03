@@ -29,7 +29,7 @@ function NavUser() {
   return (
     <div className="w-full">
       {/* Navbar */}
-      <nav className="relative flex items-center justify-center px-4 py-2 bg-gray-200">
+      <nav className="relative flex items-center justify-center px-4 py-2">
         {/* Desktop Menu */}
         <div className="hidden min-[1100px]:flex space-x-4 text-[clamp(12px,1.2vw,16px)]">
           {links.map((link) => (
@@ -39,7 +39,7 @@ function NavUser() {
               className={`transition-colors duration-200 pb-1 ${
                 pathname === link.href
                   ? "text-orange-500 bg-gray-150 rounded-lg p-2 shadow-md"
-                  : "text-black hover:text-orange-500 hover:bg-gray-100 rounded-lg p-2"
+                  : "text-black hover:text-red-500 hover:scale-105 rounded-lg p-2"
               }`}
             >
               {link.label}

@@ -23,6 +23,10 @@ export default function RootLayoutWrapper({ children }) {
       "/", // ana sayfa
       "/footerinfo/about",
       "/footerinfo/couriers",
+      "/footerinfo/job",
+      "/footerinfo/security",
+      "/footerinfo/investors",
+      "/footerinfo/sustainability",
     ],
     []
   );

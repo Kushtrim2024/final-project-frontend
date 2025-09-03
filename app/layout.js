@@ -1,5 +1,8 @@
 import "./globals.css";
 import RootLayoutWrapper from "./components/RootLayoutWrapper";
+import AuthProvider from "./components/auth-provider";
+import { SessionProvider } from "next-auth/react";
+import Providers from "./components/Providers";
 
 export const metadata = {
   title: "Liefrik",
@@ -23,9 +26,13 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en">
       <body className="bg-white/50 font-sans">
-        <RootLayoutWrapper>
-          <div className="min-h-[35rem] ">{children}</div>
-        </RootLayoutWrapper>
+        <Providers>
+          <RootLayoutWrapper>
+            <AuthProvider>
+              <div className="min-h-[35rem]">{children}</div>
+            </AuthProvider>
+          </RootLayoutWrapper>
+        </Providers>
       </body>
     </html>
   );

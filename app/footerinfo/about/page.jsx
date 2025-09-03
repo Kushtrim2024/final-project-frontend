@@ -1,9 +1,13 @@
-import React from "react";
-
-function page() {
+const About = () => {
   return (
-    <div className="w-8/12 h-296 mx-auto bg-amber-500">Welcome to Liefrik!</div>
+    <div className="container mx-auto px-4 py-12">
+      <h1 className="text-3xl font-bold mb-6">Über Liefrik.de</h1>
+      <p className="text-gray-700">
+        Liefrik.de ist deine Plattform für schnelle und zuverlässige Lieferungen
+        direkt zu dir nach Hause.
+      </p>
+    </div>
   );
-}
+};
 
-export default page;
+export default About;

@@ -39,7 +39,7 @@ export default function UserLayout({ children }) {
   }
 
   return (
-    <div className="sticky top-0 flex flex-col bg-gray-200 w-full shadow-md">
+    <div className="sticky top-0 flex flex-col bg-orange-200/25 w-full shadow-md">
       <div className="flex flex-row items-center justify-around w-full h-30 px-4 shadow-md">
         {/* Logo */}
         <Link href="/">
