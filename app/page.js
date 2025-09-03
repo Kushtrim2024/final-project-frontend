@@ -379,7 +379,7 @@ export default function Home() {
 
             {!loading && err && (
               <div className="col-span-full rounded-xl bg-red-50 p-4 text-red-700 ring-1 ring-red-200">
-                Failed to load restaurants: {err}
+                Database cannot be reached.
               </div>
             )}
 

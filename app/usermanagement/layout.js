@@ -9,12 +9,34 @@ import { useRouter } from "next/navigation";
 export default function UserLayout({ children }) {
   const router = useRouter();
 
-  const handleLogout = () => {
-    //Delete Token
-    localStorage.removeItem("token");
-    // to Homepage
-    router.push("/");
-  };
+  async function handleLogout() {
+    try {
+      await fetch(`${API_BASE}/auth/logout`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        credentials: "include",
+      }).catch(() => {});
+    } catch {}
+    try {
+      [
+        "auth",
+        "token",
+        "accessToken",
+        "jwt",
+        "role",
+        "username",
+        "user",
+        "restaurantOwner",
+        "owner",
+        "customer",
+      ].forEach((k) => localStorage.removeItem(k));
+    } catch {}
+
+    if (typeof window !== "undefined") window.location.href = "/login";
+  }
 
   return (
     <div className="sticky top-0 flex flex-col bg-gray-200 w-full shadow-md">

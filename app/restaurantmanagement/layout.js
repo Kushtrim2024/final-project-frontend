@@ -18,14 +18,34 @@ export default function Navbar({ children }) {
 
   const toggleMenu = () => setMenuOpen(!menuOpen);
 
-  const handleLoginLogout = () => {
-    if (isLoggedIn) {
-      setIsLoggedIn(false);
-      router.push("/login");
-    } else {
-      router.push("/partnerwithus");
-    }
-  };
+  async function handleLoginLogout() {
+    try {
+      await fetch(`${API_BASE}/auth/logout`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        credentials: "include",
+      }).catch(() => {});
+    } catch {}
+    try {
+      [
+        "auth",
+        "token",
+        "accessToken",
+        "jwt",
+        "role",
+        "username",
+        "user",
+        "restaurantOwner",
+        "owner",
+        "customer",
+      ].forEach((k) => localStorage.removeItem(k));
+    } catch {}
+
+    if (typeof window !== "undefined") window.location.href = "/partnerwithus";
+  }
 
   return (
     <div className="min-h-screen bg-gray-100 flex flex-col">
@@ -101,7 +121,7 @@ export default function Navbar({ children }) {
             onClick={handleLoginLogout}
             className="bg-orange-500 text-white px-4 py-2 rounded-lg hover:bg-orange-600 transition-colors"
           >
-            {isLoggedIn ? "Login" : "Logout"}
+            Logout
           </button>
         </div>
       </header>
