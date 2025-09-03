@@ -3,8 +3,12 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+// ---- API Endpoints (zentral) ----
+const API_BASE = "http://localhost:5517"; // ⬅️ WICHTIG: /owner, nicht /user
+const LOGIN_URL = `${API_BASE}/owner/login`; // ⬅️ WICHTIG: owner, nicht user
+const REGISTER_URL = `${API_BASE}/owner/register`; // falls Owner-Registrierung genutzt wird
 
-function PartnerPage() {
+export default function PartnerPage() {
   const router = useRouter();
 
   // -------------------- Login state --------------------
@@ -48,23 +52,60 @@ function PartnerPage() {
     setLoginMsg("");
     setLoginLoading(true);
     try {
-      const res = await fetch("http://localhost:5517/owner/login", {
+      const res = await fetch(LOGIN_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          email: loginForm.email,
-          password: loginForm.password,
+          email: "emie.hettinger50@yahoo.com",
+          password: "OwnerPW123!",
         }),
       });
-      if (!res.ok) throw new Error(`Login failed (${res.status})`);
+
+      if (!res.ok) {
+        let msg = `Login failed (${res.status})`;
+        try {
+          const j = await res.json();
+          if (j?.message) msg = j.message;
+        } catch {}
+        throw new Error(msg);
+      }
+
       const data = await res.json();
 
-      const token = data?.token || data?.accessToken || data?.authToken || null;
+      // Token + Ownerdaten speichern (rolle "restaurant")
+      const token = data?.token;
+      const owner = data?.owner || data?.user || {};
+
+      const ownerName = owner?.ownerName || owner?.name || null;
+      const restaurantId =
+        owner?.restaurantId ||
+        owner?.restaurant?._id ||
+        owner?.restaurant ||
+        null;
+      const restaurantName =
+        owner?.restaurantName || owner?.restaurant?.name || null;
+
       if (token) {
         localStorage.setItem("token", token);
         localStorage.setItem("role", "restaurant");
+        localStorage.setItem(
+          "auth",
+          JSON.stringify({
+            token,
+            user: {
+              id: owner?._id || owner?.id || null,
+              role: "restaurant",
+              ownerName,
+              restaurantName,
+              restaurantId,
+              email: owner?.email || loginForm.email.trim().toLowerCase(),
+            },
+          })
+        );
       }
+
       setLoginMsg("Logged in successfully.");
+      // Weiter zur Management-Seite
       router.push("/restaurantmanagement/menumanagement");
     } catch (err) {
       setLoginMsg(err.message || "Could not log in.");
@@ -130,15 +171,18 @@ function PartnerPage() {
         website: registerForm.website || "",
       };
 
-      const res = await fetch("http://localhost:5517/owner/register", {
+      const res = await fetch(REGISTER_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      if (!res.ok) throw new Error(`Register failed (${res.status})`);
+
+      if (!res.ok) {
+        const txt = await res.text().catch(() => "");
+        throw new Error(`Register failed (${res.status}) ${txt}`);
+      }
 
       setRegisterMsg("Registered successfully. You can now log in.");
-
       setTimeout(() => {
         setShowRegisterModal(false);
         setRegisterMsg("");
@@ -489,5 +533,3 @@ function PartnerPage() {
     </div>
   );
 }
-
-export default PartnerPage;

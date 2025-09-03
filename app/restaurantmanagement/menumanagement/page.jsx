@@ -2,32 +2,173 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 
-export default function MenuManagementPage() {
-  /** ---------- CONFIG ---------- */
-  // Your restaurant ObjectId
-  const RESTAURANT_ID = "68a4832b77d748d8c18f4024";
-  const LIST_URL = `http://localhost:5517/owner/restaurants/68a4832b77d748d8c18f4024/menu-items`;
-  const UPLOAD_URL = "http://localhost:5517/upload";
-  const PAGE_SIZE_OPTIONS = [9, 18, 27];
+/* ===================== CONFIG ===================== */
+const API_BASE = "http://localhost:5517";
+// Fallback-Restaurant, von dem wir wissen, dass Items existieren
+const DEFAULT_RESTAURANT_ID = "688f371b18a69156d2d8bb4c";
+// Große Optionen, damit du viel/alles siehst
+const PAGE_SIZE_OPTIONS = [50, 100, 200, 500, 1000];
 
-  /** ---------- STATE ---------- */
-  // table data (client vs server mode)
-  const [items, setItems] = useState([]); // client mode (all items)
-  const [pageItems, setPageItems] = useState([]); // server mode (page items)
+/* ===================== HELPERS ===================== */
+
+// Token aus localStorage
+function getToken() {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem("token");
+}
+function authHeader() {
+  const t = getToken();
+  return t ? { Authorization: `Bearer ${t}` } : {};
+}
+
+// RestaurantId aus localStorage.auth holen (falls Login-Modul sie dort speichert)
+function getRestaurantIdFromAuth() {
+  try {
+    const auth = JSON.parse(localStorage.getItem("auth") || "null");
+    return (
+      auth?.user?.restaurantId ||
+      auth?.user?.restaurant?._id ||
+      auth?.user?.restaurant ||
+      null
+    );
+  } catch {
+    return null;
+  }
+}
+
+// Zahl-Parser (für „12,99“ o.ä.)
+function toNumberOrNull(v) {
+  if (v == null || v === "") return null;
+  const n = Number(
+    String(v)
+      .replace(/[^\d.,-]/g, "")
+      .replace(",", ".")
+  );
+  return Number.isFinite(n) ? n : null;
+}
+
+// Filter (Search + Kategorie)
+function applyClientFilters(arr, search = "", filterCat = "") {
+  const q = (search || "").toLowerCase().trim();
+  const cat = (filterCat || "").toLowerCase().trim();
+  return arr.filter((i) => {
+    const inText =
+      !q ||
+      (i.name && i.name.toLowerCase().includes(q)) ||
+      (i.description && i.description.toLowerCase().includes(q)) ||
+      (i.category && i.category.toLowerCase().includes(q));
+    const inCat = !cat || (i.category && i.category.toLowerCase() === cat);
+    return inText && inCat;
+  });
+}
+
+// Pager-Anzeige (1 … 4 5 6 … 10)
+function paginateRange(page, totalPages, span = 1) {
+  const pages = new Set([1, totalPages, page]);
+  for (let d = 1; d <= span; d++) {
+    pages.add(page - d);
+    pages.add(page + d);
+  }
+  const sorted = [...pages]
+    .filter((n) => n >= 1 && n <= totalPages)
+    .sort((a, b) => a - b);
+  const out = [];
+  for (let i = 0; i < sorted.length; i++) {
+    out.push(sorted[i]);
+    if (i < sorted.length - 1 && sorted[i + 1] - sorted[i] > 1) out.push("…");
+  }
+  return out;
+}
+
+// UI-Mapping -> deine DB-Struktur
+function normalizeItem(x) {
+  const priceNum = Number.isFinite(Number(x.price)) ? Number(x.price) : null;
+  return {
+    id: x._id,
+    name: x.name,
+    description: x.description ?? "",
+    category: x.category,
+    subcategory: x.subcategory,
+    price: priceNum, // direkte Anzeige
+    basePrice: priceNum ?? 0, // Fallback
+    sizes: [], // deine DB nutzt keine sizes bei diesen Seeds
+    sizesUI: "",
+    image:
+      Array.isArray(x.images) && x.images.length > 0
+        ? x.images[0]
+        : x.image || "",
+    status: x.available ? "Active" : "Inactive",
+  };
+}
+
+// Form -> Backend Payload (Add/Update)
+function buildPayload(form) {
+  const payload = {
+    name: form.name,
+    description: form.description,
+    category: form.category,
+    image: form.image || undefined,
+    available: (form.status || "Active") === "Active",
+  };
+
+  // Größen vs. Single-Price
+  const s = form.sizesEnabled
+    ? [
+        form.sizePrices.small
+          ? { label: "Small", price: form.sizePrices.small }
+          : null,
+        form.sizePrices.medium
+          ? { label: "Medium", price: form.sizePrices.medium }
+          : null,
+        form.sizePrices.large
+          ? { label: "Large", price: form.sizePrices.large }
+          : null,
+      ].filter(Boolean)
+    : [];
+
+  if (s.length > 0) {
+    payload.sizes = s.map((x) => ({
+      label: x.label,
+      price: Number(String(x.price).replace(",", ".")),
+    }));
+  } else {
+    // deine Seeds nutzen "price"
+    payload.price = form.price
+      ? Number(String(form.price).replace(",", "."))
+      : undefined;
+  }
+
+  return payload;
+}
+
+// Datei -> Base64 Fallback
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result);
+    r.onerror = reject;
+    r.readAsDataURL(file);
+  });
+}
+
+/* ===================== PAGE ===================== */
+
+export default function MenuManagementPage() {
+  // Daten & UI-State
+  const [items, setItems] = useState([]); // Client-Mode (alle)
+  const [pageItems, setPageItems] = useState([]); // Server-Mode (Seite)
   const [serverMode, setServerMode] = useState(false);
   const [totalCount, setTotalCount] = useState(null);
   const [lastBatchSize, setLastBatchSize] = useState(0);
 
-  // pagination + reload
+  // groß starten, damit du „alles“ siehst
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(PAGE_SIZE_OPTIONS[0]); // default: 9
+  const [pageSize, setPageSize] = useState(500);
   const [reloadTick, setReloadTick] = useState(0);
 
-  // filters
   const [search, setSearch] = useState("");
   const [filterCat, setFilterCat] = useState("");
 
-  // form
   const [form, setForm] = useState({
     id: null,
     name: "",
@@ -42,229 +183,64 @@ export default function MenuManagementPage() {
     preview: "",
   });
   const [editingId, setEditingId] = useState(null);
-  const [editingOriginalSizes, setEditingOriginalSizes] = useState([]); // preserve on update
+  const [editingOriginalSizes, setEditingOriginalSizes] = useState([]);
+  const [viewMode, setViewMode] = useState("grouped"); // "grouped" | "table"
 
-  // UI flags
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
 
-  /** ---------- INLINE HELPERS (kept inside the component) ---------- */
-  // Authorization: read token from localStorage (if any)
-  const getToken = () =>
-    typeof window === "undefined" ? null : localStorage.getItem("token");
-
-  const authHeader = () => {
-    const t = getToken();
-    return t ? { Authorization: `Bearer ${t}` } : {};
-  };
-
-  // Safe numeric conversion (accepts "12,99" and "12.99")
-  const toNumberOrNull = (v) => {
-    if (v == null || v === "") return null;
-    const n = Number(
-      String(v)
-        .replace(/[^\d.,-]/g, "")
-        .replace(",", ".")
-    );
-    return Number.isFinite(n) ? n : null;
-  };
-
-  // Convert sizes array into a compact UI string (e.g., "Small(8.99), Medium(10.99)")
-  const sizesArrayToUI = (arr) =>
-    !Array.isArray(arr) || arr.length === 0
-      ? ""
-      : arr
-          .map((s) => {
-            const p = toNumberOrNull(s?.price);
-            return p != null ? `${s.label}(${p.toFixed(2)})` : s.label;
-          })
-          .join(", ");
-  const normalizeItem = (x) => {
-    const sizes = Array.isArray(x.sizes) ? x.sizes : [];
-
-    // Wenn Größen vorhanden sind, nimm den günstigsten Preis
-    let basePrice = x.basePrice;
-    if (sizes.length > 0) {
-      const prices = sizes.map((s) => Number(s.price)).filter(Number.isFinite);
-      if (prices.length > 0) {
-        basePrice = Math.min(...prices);
-      }
-    }
-
-    return {
-      id: x._id,
-      name: x.name,
-      description: x.description || "",
-      category: x.category,
-      basePrice,
-      sizes,
-      sizesUI: sizesArrayToUI(sizes),
-      image: Array.isArray(x.images) && x.images.length > 0 ? x.images[0] : "",
-      status: x.status || "available",
-    };
-  };
-
-  const buildPayload = (f) => {
-    const payload = {
-      name: f.name,
-      description: f.description,
-      image: f.image || undefined,
-      imageData: f.imageData || undefined, // base64 fallback if upload service is unavailable
-      category: f.category,
-      status: f.status || "Active",
-    };
-    const cat = (f.category || "").trim().toLowerCase();
-
-    if (f.sizesEnabled) {
-      const s = toNumberOrNull(f.sizePrices.small);
-      const m = toNumberOrNull(f.sizePrices.medium);
-      const l = toNumberOrNull(f.sizePrices.large);
-
-      let sizes = [];
-      if (s != null) sizes.push({ label: "Small", price: s });
-      if (m != null) sizes.push({ label: "Medium", price: m });
-      if (l != null) sizes.push({ label: "Large", price: l });
-
-      // If editing and user left S/M/L blank, keep original sizes
-      if (sizes.length === 0 && editingId && editingOriginalSizes.length > 0) {
-        sizes = editingOriginalSizes
-          .map((x) => ({
-            label: x.label,
-            price: toNumberOrNull(x.price),
-          }))
-          .filter((x) => x.label);
-      }
-
-      if (sizes.length > 0) {
-        payload.sizes = sizes;
-        const minPrice = Math.min(
-          ...sizes.map((x) => Number(x.price)).filter((n) => Number.isFinite(n))
-        );
-        if (Number.isFinite(minPrice)) payload.basePrice = minPrice;
-        // When sizes exist, do not send `price`
-        return payload;
-      }
-
-      // Sizes enabled but no values at all (and no originals) → fallback to single price
-      const single = toNumberOrNull(f.price);
-      if (single != null) {
-        if (cat === "pizza") {
-          payload.price = single; // pizza → price
-          payload.basePrice = undefined;
-        } else {
-          payload.basePrice = single; // non-pizza → basePrice
-          payload.price = undefined;
-        }
-      }
-      return payload;
-    }
-
-    // Sizes disabled → single price
-    const single = toNumberOrNull(f.price);
-    if (single != null) {
-      if (cat === "pizza") {
-        payload.price = single;
-        payload.basePrice = undefined;
-      } else {
-        payload.basePrice = single;
-        payload.price = undefined;
-      }
-    }
-    return payload;
-  };
-
-  // Apply local filters for client mode
-  const applyClientFilters = (arr) => {
-    const s = (search || "").toLowerCase();
-    const cat = (filterCat || "").toLowerCase();
-    return arr.filter((x) => {
-      const okSearch =
-        !s ||
-        x.name.toLowerCase().includes(s) ||
-        x.description.toLowerCase().includes(s) ||
-        (x.category || "").toLowerCase().includes(s);
-      const okCat = !cat || (x.category || "").toLowerCase() === cat;
-      return okSearch && okCat;
-    });
-  };
-
-  // Short pagination range: 1 … 4 5 6 … 10
-  const paginateRange = (current, total) => {
-    const delta = 1;
-    const range = [];
-    const out = [];
-    let l;
-    for (let i = 1; i <= total; i++) {
-      if (
-        i === 1 ||
-        i === total ||
-        (i >= current - delta && i <= current + delta)
-      )
-        range.push(i);
-    }
-    for (const i of range) {
-      if (l) {
-        if (i - l === 2) out.push(l + 1);
-        else if (i - l !== 1) out.push("…");
-      }
-      out.push(i);
-      l = i;
-    }
-    return out;
-  };
-
-  // Read a file as base64 (fallback when upload service is not available)
-  const fileToBase64 = async (file) => {
-    const buf = await file.arrayBuffer();
-    const bytes = new Uint8Array(buf);
-    let binary = "";
-    for (let i = 0; i < bytes.byteLength; i++)
-      binary += String.fromCharCode(bytes[i]);
-    return `data:${file.type};base64,${btoa(binary)}`;
-  };
-  /** ---------- LOAD DATA ---------- */
+  /* ---------- LOAD DATA ---------- */
   useEffect(() => {
     (async () => {
       try {
         setLoading(true);
         setError(null);
 
-        const url = new URL(LIST_URL);
+        // 1) Restaurant-ID bestimmen + Fallback
+        let restaurantId = getRestaurantIdFromAuth();
+        if (!restaurantId) {
+          restaurantId = DEFAULT_RESTAURANT_ID;
+          console.warn("Nutze Fallback restaurantId:", restaurantId);
+        }
+
+        // 2) URL bauen
+        const url = new URL(
+          `${API_BASE}/owner/restaurants/${restaurantId}/menu-items`
+        );
         url.searchParams.set("page", String(page));
         url.searchParams.set("limit", String(pageSize));
 
-        let res = await fetch(url.toString(), {
+        // 3) Fetch
+        const res = await fetch(url.toString(), {
           cache: "no-store",
           headers: { "Content-Type": "application/json", ...authHeader() },
         });
-
-        if (!res.ok) throw new Error("Request failed");
+        if (!res.ok) throw new Error(`Request failed ${res.status}`);
         const json = await res.json();
 
-        // 👇 Debug-Ausgaben
-        console.log("Backend response:", json);
-
+        // 4) Daten extrahieren
         let data = [];
         let total = 0;
 
-        if (Array.isArray(json)) {
-          // Backend gibt direkt ein Array zurück
+        if (json && Array.isArray(json.items)) {
+          data = json.items;
+          total =
+            typeof json.total === "number" ? json.total : json.items.length;
+        } else if (Array.isArray(json)) {
           data = json;
           total = json.length;
         } else if (json && Array.isArray(json.data)) {
-          // Backend gibt { data, total }
           data = json.data;
           total =
             typeof json.total === "number" ? json.total : json.data.length;
         }
-        console.log("Extracted data:", data);
-        console.log(">>> RAW items from backend (ungefiltert):", data);
 
-        // Rohdaten direkt anzeigen, ohne normalizeItem oder Filter
-        setItems(data);
-        setPageItems(data);
+        const norm = data.map(normalizeItem);
 
+        // 5) States setzen – wir nutzen Client-Mode (alles im Speicher)
+        setItems(norm);
+        setPageItems(norm); // für späteren Server-Mode
         setTotalCount(total);
         setLastBatchSize(data.length);
         setServerMode(false);
@@ -277,14 +253,14 @@ export default function MenuManagementPage() {
     })();
   }, [page, pageSize, reloadTick]);
 
-  // When switching filters in client mode, go back to page 1
+  // Filterwechsel -> Seite 1 (nur im Client-Mode)
   useEffect(() => {
     if (!serverMode) setPage(1);
   }, [search, filterCat, serverMode]);
 
-  /** ---------- DERIVED ---------- */
+  /* ---------- DERIVED ---------- */
   const filteredAll = useMemo(
-    () => applyClientFilters(items),
+    () => applyClientFilters(items, search, filterCat),
     [items, search, filterCat]
   );
 
@@ -315,7 +291,7 @@ export default function MenuManagementPage() {
         : lastBatchSize < pageSize
       : page >= totalPages);
 
-  /** ---------- HANDLERS ---------- */
+  /* ---------- HANDLERS ---------- */
   const handleInput = (e) => {
     const { name, value, checked } = e.target;
     if (name === "sizesEnabled") {
@@ -388,6 +364,11 @@ export default function MenuManagementPage() {
 
   const onSave = async () => {
     if (!form.name) return alert("Name is required");
+
+    // Restaurant-ID wie beim Laden bestimmen
+    let restaurantId = getRestaurantIdFromAuth() || DEFAULT_RESTAURANT_ID;
+    const LIST_URL = `${API_BASE}/owner/restaurants/${restaurantId}/menu-items`;
+
     const payload = buildPayload(form);
     try {
       setSaving(true);
@@ -413,6 +394,10 @@ export default function MenuManagementPage() {
 
   const onUpdate = async () => {
     if (!editingId) return;
+
+    let restaurantId = getRestaurantIdFromAuth() || DEFAULT_RESTAURANT_ID;
+    const LIST_URL = `${API_BASE}/owner/restaurants/${restaurantId}/menu-items`;
+
     const payload = buildPayload(form);
     try {
       setSaving(true);
@@ -437,6 +422,10 @@ export default function MenuManagementPage() {
 
   const onDelete = async (id) => {
     if (!confirm("Delete this item?")) return;
+
+    let restaurantId = getRestaurantIdFromAuth() || DEFAULT_RESTAURANT_ID;
+    const LIST_URL = `${API_BASE}/owner/restaurants/${restaurantId}/menu-items`;
+
     try {
       setSaving(true);
       setError(null);
@@ -457,13 +446,13 @@ export default function MenuManagementPage() {
     }
   };
 
+  const UPLOAD_URL = `${API_BASE}/upload`;
   const handleFileChange = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
     const preview = URL.createObjectURL(file);
     setForm((p) => ({ ...p, preview }));
 
-    // Try upload endpoint first
     try {
       const formData = new FormData();
       formData.append("file", file);
@@ -480,27 +469,27 @@ export default function MenuManagementPage() {
         }
       }
     } catch {
-      // fall back to base64
+      /* Fallback unten */
     }
     const b64 = await fileToBase64(file);
     setForm((p) => ({ ...p, imageData: b64, image: "" }));
   };
 
-  /** ---------- RENDER ---------- */
+  /* ---------- RENDER ---------- */
   return (
     <div className="min-h-screen bg-gray-100 p-4">
       <div className="mx-auto max-w-7xl rounded-lg bg-white p-4 shadow">
-        {/* Header ---------------------------------------------------------------------------------------------*/}
+        {/* Header */}
         <div className="mb-4 flex items-center justify-between">
           <div className="ml-1 text-gray-800 font-bold text-2xl">
-            <h1> Restaurant Menu</h1>
+            <h1>Restaurant Menu</h1>
           </div>
           <div className="text-sm text-white rounded-md bg-orange-600 px-4 py-2">
             {loading
               ? "Loading…"
               : totalCount != null
               ? `Total: ${totalCount}`
-              : ""}
+              : `Loaded: ${items.length}`}
             {saving ? " • Saving…" : ""}
             {error && (
               <span className="ml-3 rounded bg-red-100 px-2 py-1 text-red-700">
@@ -510,7 +499,7 @@ export default function MenuManagementPage() {
           </div>
         </div>
 
-        {/* Form  - Add New Item ------------------------------------------------------------------------------------*/}
+        {/* Form */}
         <section className="mb-6 rounded-lg bg-gray-50 p-4">
           <h2 className="mb-3 text-lg font-semibold">
             {editingId ? "Edit Item" : "Add New Item"}
@@ -538,7 +527,7 @@ export default function MenuManagementPage() {
                 name="category"
                 value={form.category}
                 onChange={handleInput}
-                placeholder="Pizza / Burger / Dessert…"
+                placeholder="Starters / Main Courses / Drinks …"
                 className="mt-1 block w-full rounded-md border-gray-300 p-2 text-sm shadow-sm"
               />
             </div>
@@ -564,7 +553,7 @@ export default function MenuManagementPage() {
                 name="description"
                 value={form.description}
                 onChange={handleInput}
-                placeholder="Classic pizza with tomato sauce, mozzarella, and basil."
+                placeholder="Item description…"
                 rows={3}
                 className="mt-1 block w-full rounded-md border-gray-300 p-2 text-sm shadow-sm"
               />
@@ -622,9 +611,8 @@ export default function MenuManagementPage() {
                   />
                 </div>
                 <div className="md:col-span-3 text-xs text-gray-600">
-                  When sizes are enabled, the request sends a <code>sizes</code>{" "}
-                  array and sets <code>basePrice</code> to the cheapest size for
-                  list views.
+                  When sizes are enabled, a <code>sizes</code> array is sent and{" "}
+                  <code>price</code> is omitted.
                 </div>
               </>
             )}
@@ -749,6 +737,20 @@ export default function MenuManagementPage() {
                 </option>
               ))}
             </select>
+
+            {/* View-Umschalter */}
+            <div className="ml-2 flex items-center gap-2">
+              <label className="text-sm text-gray-600">View</label>
+              <select
+                value={viewMode}
+                onChange={(e) => setViewMode(e.target.value)}
+                className="rounded-md border p-2 text-sm"
+              >
+                <option value="grouped">Grouped by Category</option>
+                <option value="table">Table</option>
+              </select>
+            </div>
+
             <button
               onClick={() => setReloadTick((t) => t + 1)}
               className="rounded-md bg-gray-800 px-3 py-1.5 text-sm text-white"
@@ -759,214 +761,250 @@ export default function MenuManagementPage() {
         </div>
 
         {/* Table */}
-        <section className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200 text-sm">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-                  Image
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-                  Name
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-                  Category
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-                  Price/Base
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-                  Sizes
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-                  Status
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200 bg-white">
-              {loading ? (
-                <tr>
-                  <td colSpan={7} className="p-6 text-center text-gray-500">
-                    Loading…
-                  </td>
-                </tr>
-              ) : dataForTable.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="p-6 text-center text-gray-500">
-                    No items.
-                  </td>
-                </tr>
-              ) : (
-                dataForTable.map((item) => (
-                  <tr key={item.id}>
-                    <td className="px-4 py-3">
-                      <img
-                        src={item.image}
-                        alt={item.name}
-                        className="h-10 w-10 rounded object-cover ring-1 ring-black/10"
-                      />
-                    </td>
-                    <td className="px-4 py-3 text-gray-700 font-medium">
-                      {item.name}
-                    </td>
-                    <td className="px-4 py-3 text-gray-700">
-                      {item.category || "—"}
-                    </td>
-                    <td className="px-4 py-3 text-gray-700">
-                      {item.price != null
-                        ? `${item.price.toFixed(2)}`
-                        : item.basePrice != null
-                        ? `${item.basePrice.toFixed(2)}`
-                        : "—"}
-                    </td>
-                    <td className="px-4 py-3 text-gray-700 max-w-[280px] truncate">
-                      {item.sizesUI || "—"}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span
-                        className={`inline-flex rounded-full px-2 text-xs font-semibold leading-5 ${
-                          (item.status || "Active") === "Active"
-                            ? "bg-green-100 text-green-800"
-                            : "bg-red-100 text-red-800"
+        {viewMode === "table" && (
+          <>
+            <section className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200 text-sm">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                      Image
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                      Name
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                      Category
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                      Price/Base
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                      Sizes
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                      Status
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200 bg-white">
+                  {loading ? (
+                    <tr>
+                      <td colSpan={7} className="p-6 text-center text-gray-500">
+                        Loading…
+                      </td>
+                    </tr>
+                  ) : dataForTable.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="p-6 text-center text-gray-500">
+                        No items.
+                      </td>
+                    </tr>
+                  ) : (
+                    dataForTable.map((item) => (
+                      <tr key={item.id}>
+                        <td className="px-4 py-3">
+                          <img
+                            src={item.image}
+                            alt={item.name}
+                            className="h-10 w-10 rounded object-cover ring-1 ring-black/10"
+                          />
+                        </td>
+                        <td className="px-4 py-3 text-gray-700 font-medium">
+                          {item.name}
+                        </td>
+                        <td className="px-4 py-3 text-gray-700">
+                          {item.category || "—"}
+                        </td>
+                        <td className="px-4 py-3 text-gray-700">
+                          {item.price != null
+                            ? `${item.price.toFixed(2)}`
+                            : item.basePrice != null
+                            ? `${item.basePrice.toFixed(2)}`
+                            : "—"}
+                        </td>
+                        <td className="px-4 py-3 text-gray-700 max-w-[280px] truncate">
+                          {item.sizesUI || "—"}
+                        </td>
+                        <td className="px-4 py-3">
+                          <span
+                            className={`inline-flex rounded-full px-2 text-xs font-semibold leading-5 ${
+                              (item.status || "Active") === "Active"
+                                ? "bg-green-100 text-green-800"
+                                : "bg-red-100 text-red-800"
+                            }`}
+                          >
+                            {item.status || "Active"}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <button
+                            onClick={() => onEdit(item)}
+                            className="ml-2 rounded-md bg-indigo-600 px-2 py-1 text-xs text-white hover:bg-indigo-700"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => onDelete(item.id)}
+                            className="ml-2 rounded-md bg-red-600 px-2 py-1 text-xs text-white hover:bg-red-700"
+                          >
+                            Delete
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </section>
+
+            {/* Pagination (nur sinnvoll im Table-Mode) */}
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
+              <div className="text-sm text-gray-700">
+                Page {page} / {totalPages}
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  disabled={isPrevDisabled}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  className={`rounded-lg px-3 py-2 text-sm ring-1 ${
+                    isPrevDisabled
+                      ? "cursor-not-allowed bg-white/40 text-gray-400 ring-white/30"
+                      : "bg-white text-gray-800 ring-black/10 hover:bg-gray-50"
+                  }`}
+                >
+                  ← Prev
+                </button>
+
+                <div className="hidden items-center gap-1 md:flex">
+                  {paginateRange(page, totalPages).map((n, idx) =>
+                    n === "…" ? (
+                      <span key={`dots-${idx}`} className="px-2 text-gray-500">
+                        …
+                      </span>
+                    ) : (
+                      <button
+                        key={n}
+                        onClick={() => setPage(n)}
+                        className={`rounded-md px-3 py-2 text-sm ring-1 ${
+                          n === page
+                            ? "bg-orange-600 text-white ring-orange-700"
+                            : "bg-white text-gray-800 ring-black/10 hover:bg-gray-50"
                         }`}
                       >
-                        {item.status || "Active"}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <button
-                        onClick={() => onEdit(item)}
-                        className="ml-2 rounded-md bg-indigo-600 px-2 py-1 text-xs text-white hover:bg-indigo-700"
-                      >
-                        Edit
+                        {n}
                       </button>
-                      <button
-                        onClick={() => onDelete(item.id)}
-                        className="ml-2 rounded-md bg-red-600 px-2 py-1 text-xs text-white hover:bg-red-700"
-                      >
-                        Delete
-                      </button>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </section>
+                    )
+                  )}
+                </div>
 
-        {/* Table Pagination */}
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
-          <div className="text-sm text-gray-700">
-            Page {page} / {totalPages}
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              disabled={isPrevDisabled}
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-              className={`rounded-lg px-3 py-2 text-sm ring-1 ${
-                isPrevDisabled
-                  ? "cursor-not-allowed bg-white/40 text-gray-400 ring-white/30"
-                  : "bg-white text-gray-800 ring-black/10 hover:bg-gray-50"
-              }`}
-            >
-              ← Prev
-            </button>
-
-            <div className="hidden items-center gap-1 md:flex">
-              {paginateRange(page, totalPages).map((n, idx) =>
-                n === "…" ? (
-                  <span key={`dots-${idx}`} className="px-2 text-gray-500">
-                    …
-                  </span>
-                ) : (
-                  <button
-                    key={n}
-                    onClick={() => setPage(n)}
-                    className={`rounded-md px-3 py-2 text-sm ring-1 ${
-                      n === page
-                        ? "bg-orange-600 text-white ring-orange-700"
-                        : "bg-white text-gray-800 ring-black/10 hover:bg-gray-50"
-                    }`}
-                  >
-                    {n}
-                  </button>
-                )
-              )}
+                <button
+                  disabled={isNextDisabled}
+                  onClick={() => setPage((p) => p + 1)}
+                  className={`rounded-lg px-3 py-2 text-sm ring-1 ${
+                    isNextDisabled
+                      ? "cursor-not-allowed bg-white/40 text-gray-400 ring-white/30"
+                      : "bg-white text-gray-800 ring-black/10 hover:bg-gray-50"
+                  }`}
+                >
+                  Next →
+                </button>
+              </div>
             </div>
+          </>
+        )}
 
-            <button
-              disabled={isNextDisabled}
-              onClick={() => setPage((p) => p + 1)}
-              className={`rounded-lg px-3 py-2 text-sm ring-1 ${
-                isNextDisabled
-                  ? "cursor-not-allowed bg-white/40 text-gray-400 ring-white/30"
-                  : "bg-white text-gray-800 ring-black/10 hover:bg-gray-50"
-              }`}
-            >
-              Next →
-            </button>
-          </div>
-        </div>
-
-        {/* Preview (Cards) — shows exactly the current table page */}
-        <section className="mt-8">
-          <h3 className="mb-3 text-lg font-semibold">Preview (Cards)</h3>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {dataForTable.map((i) => (
-              <div
-                key={`card-${i.id}`}
-                className="overflow-hidden rounded-2xl bg-white shadow ring-1 ring-black/5"
-              >
-                <img
-                  src={i.image}
-                  alt={i.name}
-                  className="h-40 w-full object-cover"
-                />
-                <div className="p-4">
-                  <div className="text-base font-extrabold">{i.name}</div>
-                  <div className="text-xs text-gray-600">
-                    {i.category || "—"}
-                  </div>
-                  <p className="mt-1 line-clamp-2 text-xs text-gray-600">
-                    {i.description}
-                  </p>
-                  <div className="mt-3 flex items-center justify-between">
-                    <span className="rounded bg-slate-900 px-2 py-1 text-xs text-white">
-                      {i.price != null
-                        ? `${i.price.toFixed(2)} €`
-                        : i.basePrice != null
-                        ? `${i.basePrice.toFixed(2)} €`
-                        : "—"}
-                    </span>
-                    {Array.isArray(i.sizes) && i.sizes.length > 0 && (
-                      <select className="rounded-md border px-2 py-1 text-xs">
-                        {i.sizes.map((s) => {
-                          const pv = toNumberOrNull(s.price);
-                          return (
-                            <option key={s.label} value={s.label}>
-                              {s.label}{" "}
-                              {pv != null ? `(${pv.toFixed(2)} €)` : ""}
-                            </option>
-                          );
-                        })}
-                      </select>
+        {/* Grouped by Category */}
+        {viewMode === "grouped" && (
+          <section className="mt-8">
+            {Array.from(
+              new Set(filteredAll.map((i) => i.category).filter(Boolean))
+            )
+              .sort()
+              .map((cat) => {
+                const list = filteredAll.filter((i) => i.category === cat);
+                return (
+                  <div key={cat} className="mb-10">
+                    <h3 className="mb-3 text-xl font-semibold">{cat}</h3>
+                    {list.length === 0 ? (
+                      <div className="text-sm text-gray-500">
+                        No items in this category.
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                        {list.map((i) => (
+                          <div
+                            key={`group-card-${i.id}`}
+                            className="overflow-hidden rounded-2xl bg-white shadow ring-1 ring-black/5"
+                          >
+                            <img
+                              src={i.image}
+                              alt={i.name}
+                              className="h-40 w-full object-cover"
+                            />
+                            <div className="p-4">
+                              <div className="text-base font-extrabold">
+                                {i.name}
+                              </div>
+                              <p className="mt-1 line-clamp-2 text-xs text-gray-600">
+                                {i.description}
+                              </p>
+                              <div className="mt-3 flex items-center justify-between">
+                                <span className="rounded bg-slate-900 px-2 py-1 text-xs text-white">
+                                  {i.price != null
+                                    ? `${i.price.toFixed(2)} €`
+                                    : i.basePrice != null
+                                    ? `${i.basePrice.toFixed(2)} €`
+                                    : "—"}
+                                </span>
+                                {Array.isArray(i.sizes) &&
+                                i.sizes.length > 0 ? (
+                                  <select className="rounded-md border px-2 py-1 text-xs">
+                                    {i.sizes.map((s) => {
+                                      const pv = Number(s.price);
+                                      return (
+                                        <option key={s.label} value={s.label}>
+                                          {s.label}
+                                          {Number.isFinite(pv)
+                                            ? ` (${pv.toFixed(2)} €)`
+                                            : ""}
+                                        </option>
+                                      );
+                                    })}
+                                  </select>
+                                ) : (
+                                  <span className="text-xs text-gray-500">
+                                    Single
+                                  </span>
+                                )}
+                              </div>
+                              <div className="mt-3 flex gap-2">
+                                <button
+                                  onClick={() => onEdit(i)}
+                                  className="flex-1 rounded bg-indigo-600 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-700"
+                                >
+                                  Edit
+                                </button>
+                                <button
+                                  onClick={() => onDelete(i.id)}
+                                  className="flex-1 rounded bg-red-600 px-3 py-2 text-xs font-semibold text-white hover:bg-red-700"
+                                >
+                                  Delete
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     )}
                   </div>
-                  <button className="mt-3 w-full rounded bg-rose-600 px-3 py-2 text-xs font-semibold text-white hover:bg-rose-700">
-                    Add to Cart
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-          <p className="mt-2 text-xs text-gray-500">
-            Preview shows exactly the current page’s items (equals the selected
-            “Per page” count).
-          </p>
-        </section>
+                );
+              })}
+          </section>
+        )}
       </div>
     </div>
   );
