@@ -1,29 +1,27 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+
+const API_BASE =
+  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5517";
 
 export default function ProfilePage() {
-  // Auth
   const [token, setToken] = useState(null);
   const [tokenReady, setTokenReady] = useState(false);
 
-  // Profile data
   const [user, setUser] = useState(null);
 
-  // Messages / loading
   const [msg, setMsg] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // Photo upload
   const [photoFile, setPhotoFile] = useState(null);
   const [photoPreview, setPhotoPreview] = useState(null);
   const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef(null);
 
-  // Default address
   const [defaultAddress, setDefaultAddress] = useState(null);
   const [addrLoading, setAddrLoading] = useState(false);
 
-  // Read token on mount
   useEffect(() => {
     const t =
       (typeof window !== "undefined" &&
@@ -35,21 +33,19 @@ export default function ProfilePage() {
     setTokenReady(true);
   }, []);
 
-  // Cleanup preview URL on unmount
   useEffect(() => {
     return () => {
       if (photoPreview) URL.revokeObjectURL(photoPreview);
     };
   }, [photoPreview]);
 
-  // Fetch profile
   useEffect(() => {
     if (!token) return;
     (async () => {
       setMsg("");
       setLoading(true);
       try {
-        const res = await fetch("http://localhost:5517/user/profile", {
+        const res = await fetch(`${API_BASE}/user/profile`, {
           method: "GET",
           headers: { Authorization: `Bearer ${token}` },
           cache: "no-store",
@@ -65,20 +61,16 @@ export default function ProfilePage() {
     })();
   }, [token]);
 
-  // Fetch default address
   useEffect(() => {
     if (!token) return;
     (async () => {
       setAddrLoading(true);
       try {
-        const res = await fetch(
-          "http://localhost:5517/user/profile/addresses/default",
-          {
-            method: "GET",
-            headers: { Authorization: `Bearer ${token}` },
-            cache: "no-store",
-          }
-        );
+        const res = await fetch(`${API_BASE}/user/profile/addresses/default`, {
+          method: "GET",
+          headers: { Authorization: `Bearer ${token}` },
+          cache: "no-store",
+        });
         if (res.ok) {
           const data = await res.json();
           setDefaultAddress(data);
@@ -89,40 +81,41 @@ export default function ProfilePage() {
     })();
   }, [token]);
 
-  // Upload / change profile photo
   const uploadPhoto = async () => {
     if (!photoFile) return;
     setUploading(true);
     setMsg("");
 
     const fd = new FormData();
-    fd.append("profilePicture", photoFile); // profilePicture
+    fd.append("avatar", photoFile); // ✅ backend fields: avatar/photo
 
     try {
-      const res = await fetch(`http://localhost:5517/user/profile/photo`, {
+      const res = await fetch(`${API_BASE}/user/profile/photo`, {
         method: "PUT",
-        headers: { Authorization: `Bearer ${token}` }, // ❌ohne Content-Type
+        headers: { Authorization: `Bearer ${token}` },
         body: fd,
       });
 
-      if (!res.ok) throw new Error(`Upload failed (${res.status})`);
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || `Upload failed (${res.status})`);
+      }
       const data = await res.json();
-
-      setUser((u) => ({
-        ...u,
-        profilePicture: data.url,
-      }));
-
-      setMsg("✅ Photo updated.");
+      setUser((u) => ({ ...u, profilePicture: data.url }));
+      setMsg("✅ The photo has been updated.");
     } catch (e) {
-      setMsg(e.message || "Could not upload photo.");
+      setMsg(e.message || "The photo could not be uploaded.");
     } finally {
       setUploading(false);
       setPhotoFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      if (photoPreview) {
+        URL.revokeObjectURL(photoPreview);
+        setPhotoPreview(null);
+      }
     }
   };
 
-  // UI states
   if (!tokenReady) {
     return (
       <p className="mt-10 text-center text-gray-900 dark:text-white font-medium">
@@ -170,7 +163,7 @@ export default function ProfilePage() {
           {msg}
         </div>
       )}
-      {/* Photo + uploader */}
+
       <div className="flex items-start mb-6 flex-col gap-3">
         <img
           src={currentPhotoSrc}
@@ -181,36 +174,35 @@ export default function ProfilePage() {
           }}
         />
 
-        {/* Hidden input */}
         <input
-          id="photoInput"
+          ref={fileInputRef}
           type="file"
           accept="image/*"
           className="hidden"
           onChange={(e) => {
             if (e.target.files && e.target.files[0]) {
-              setPhotoFile(e.target.files[0]);
-              setPhotoPreview(URL.createObjectURL(e.target.files[0]));
+              const f = e.target.files[0];
+              setPhotoFile(f);
+              if (photoPreview) URL.revokeObjectURL(photoPreview);
+              setPhotoPreview(URL.createObjectURL(f));
             }
           }}
         />
 
-        {/* Custom button instead of default input */}
         <div className="flex gap-2">
           <button
             type="button"
-            onClick={() => document.getElementById("photoInput").click()}
-            className="bg-blue-300 text-white text-sm px-3 py-1 rounded hover:bg-blue-600 disabled:opacity-60"
+            onClick={() => fileInputRef.current?.click()}
+            className="bg-blue-600 text-white text-sm px-3 py-1 rounded hover:bg-blue-700 disabled:opacity-60"
           >
             Select New Photo
           </button>
 
-          {/* Upload button appears only if file selected */}
           {photoFile && (
             <button
               onClick={uploadPhoto}
               disabled={uploading}
-              className="bg-purple-300 text-white text-sm px-3 py-1 rounded hover:bg-purple-600 disabled:opacity-60"
+              className="bg-purple-600 text-white text-sm px-3 py-1 rounded hover:bg-purple-700 disabled:opacity-60"
             >
               {uploading ? "Uploading..." : "Upload Photo"}
             </button>
@@ -218,7 +210,6 @@ export default function ProfilePage() {
         </div>
       </div>
 
-      {/* Read-only fields */}
       <div className="space-y-4">
         <div>
           <label className="block text-sm text-gray-700">Name</label>
@@ -242,7 +233,6 @@ export default function ProfilePage() {
         </div>
       </div>
 
-      {/* Default address */}
       <div className="mt-8 pt-6">
         <h2 className="text-lg font-semibold mb-3 text-gray-900">
           My Default Address
@@ -253,7 +243,7 @@ export default function ProfilePage() {
         ) : defaultAddress ? (
           <div className="mt-1 mb-3 block w-full rounded-md border-gray-300 shadow-sm p-2 border">
             <p className="font-medium">{defaultAddress.title}</p>
-            <div className="flex flex-col text-sm text-gray-700">
+            <div className="flex text-sm text-gray-700">
               {defaultAddress.name && <p>{defaultAddress.name}</p>}
               {defaultAddress.phone && <p>{defaultAddress.phone}</p>}
               <p>

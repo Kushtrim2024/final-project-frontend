@@ -1,9 +1,10 @@
 "use client";
+
 import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
-function LoginPage() {
+export default function LoginPage() {
   const router = useRouter();
 
   // Login state
@@ -20,12 +21,7 @@ function LoginPage() {
     password: "",
     passwordConfirm: "",
     phone: "",
-    address: {
-      street: "",
-      city: "",
-      postalCode: "",
-      country: "",
-    },
+    address: { street: "", city: "", postalCode: "", country: "" },
   });
   const [registerError, setRegisterError] = useState(null);
   const [registerSuccess, setRegisterSuccess] = useState(null);
@@ -42,13 +38,30 @@ function LoginPage() {
         body: JSON.stringify({ email, password }),
       });
       const data = await res.json();
-
       if (!res.ok) {
         setLoginError(data.message || "Login failed");
         return;
       }
-      localStorage.setItem("token", data.token);
-      router.push("/usermanagement");
+      const token = data?.token || data?.accessToken || null;
+      const user = data?.user || data?.data || {};
+      if (token) {
+        localStorage.setItem("token", token);
+        localStorage.setItem("role", "user");
+        localStorage.setItem(
+          "auth",
+          JSON.stringify({
+            token,
+            user: {
+              id: user?.id || user?._id || user?.userId || null,
+              role: "user",
+              name:
+                user?.name || user?.fullName || user?.username || email || null,
+              email: user?.email || email || null,
+            },
+          })
+        );
+      }
+      router.push("/");
     } catch (err) {
       setLoginError("Server error. Please try again.");
     } finally {
@@ -80,7 +93,6 @@ function LoginPage() {
         return;
       }
 
-      // Successful registration: close modal, fill login form
       setRegisterSuccess("Registration successful! You can log in.");
       setEmail(reg.email);
       setPassword(reg.password);
@@ -88,9 +100,6 @@ function LoginPage() {
         setShowRegisterModal(false);
         setRegisterSuccess(null);
       }, 800);
-
-      // If you want, you can also do automatic login:
-      // await handleLogin(new Event("submit"));
     } catch (err) {
       setRegisterError("Server error. Please try again.");
     } finally {
@@ -98,10 +107,8 @@ function LoginPage() {
     }
   };
 
-  // input class
   const inputClass =
     " pl-2 w-4/5  max-[400px]:w-3/4  h-8 rounded-md bg-white text-sm text-gray-800 shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition duration-200";
-
   const labelClass =
     "mt-2 text-sm font-medium text-gray-700 mb-2 flex items-center w-1/5 max-[500px]:w-2/5";
 
@@ -353,5 +360,3 @@ function LoginPage() {
     </div>
   );
 }
-
-export default LoginPage;

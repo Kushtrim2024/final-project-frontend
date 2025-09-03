@@ -332,7 +332,7 @@ export default function Header() {
 
   return (
     <header className="fixed top-0 z-50 flex flex-col w-full h-36 max-[700px]:h-44 transition-colors duration-300 bg-orange-200/25 backdrop-blur-md shadow-md ">
-      <div className="relative w-full h-32 flex items-center justify-center mt-2 mx-auto  max-[700px]:mt-10 ">
+      <div className="relative w-full h-32 flex items-center justify-center mt-2 mx-auto  max-[700px]:mt-10">
         {/* Logo */}
         <section className="absolute bottom-[-15px] left-25 h-36 w-34 flex items-center justify-left max-[1000px]:scale-85 max-[1000px]:left-[15px] max-[650px]:scale-70 max-[600px]:left-[-5px]  max-[600px]:top-[-15px]">
           <Link href="/">
@@ -475,7 +475,7 @@ export default function Header() {
                       icon={faRightFromBracket}
                       className="h-4 w-4"
                     />
-                    <span>Logout</span>
+                    <span>Login</span>
                   </button>
                 </div>
               )}
