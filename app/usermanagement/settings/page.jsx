@@ -22,6 +22,11 @@ export default function SettingsPage() {
   const [addrLoading, setAddrLoading] = useState(false);
   const [msg, setMsg] = useState("");
 
+  // Password visibility states
+  const [showCurrent, setShowCurrent] = useState(false);
+  const [showNew, setShowNew] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+
   // Read token
   useEffect(() => {
     const t =
@@ -44,7 +49,7 @@ export default function SettingsPage() {
           headers: { Authorization: `Bearer ${token}` },
           cache: "no-store",
         });
-        if (!res.ok) throw new Error(`Load profile failed (${res.status})`);
+        if (!res.ok) throw new Error(`Failed to load profile (${res.status})`);
         const data = await res.json();
         setForm((f) => ({
           ...f,
@@ -61,7 +66,7 @@ export default function SettingsPage() {
     })();
   }, [token]);
 
-  // Load default address (nur country)
+  // Load default address (only country)
   useEffect(() => {
     if (!token) return;
     (async () => {
@@ -88,12 +93,28 @@ export default function SettingsPage() {
     setForm((p) => ({ ...p, [name]: value }));
   };
 
-  // Save Profile
   const onSubmit = async (e) => {
     e.preventDefault();
     setMsg("");
 
-    // 1. Update user basic info
+    // 1. Validate new password if exists
+    if (form.newPassword) {
+      const password = form.newPassword;
+      const passwordRegex =
+        /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*]).{8,}$/;
+      if (!passwordRegex.test(password)) {
+        setMsg(
+          "❌ Password must be at least 8 characters, including uppercase, lowercase, number, and special character."
+        );
+        return;
+      }
+      if (form.newPassword !== form.confirmNewPassword) {
+        setMsg("❌ New passwords do not match.");
+        return;
+      }
+    }
+
+    // 2. Update user basic info
     try {
       const res = await fetch(`${API_BASE}/user/profile/update`, {
         method: "PUT",
@@ -114,12 +135,8 @@ export default function SettingsPage() {
       return;
     }
 
-    // 2. If password change requested
+    // 3. Update password
     if (form.newPassword) {
-      if (form.newPassword !== form.confirmNewPassword) {
-        setMsg("❌ New passwords do not match.");
-        return;
-      }
       try {
         const res = await fetch(`${API_BASE}/user/profile/update-password`, {
           method: "PUT",
@@ -130,6 +147,7 @@ export default function SettingsPage() {
           body: JSON.stringify({
             currentPassword: form.currentPassword,
             newPassword: form.newPassword,
+            confirmNewPassword: form.confirmNewPassword,
           }),
         });
         if (!res.ok) throw new Error(`Password update failed (${res.status})`);
@@ -148,7 +166,6 @@ export default function SettingsPage() {
     }));
   };
 
-  // Delete Account
   const onDelete = async () => {
     if (
       !confirm(
@@ -241,52 +258,73 @@ export default function SettingsPage() {
             name="country"
             value={form.country}
             onChange={onChange}
-            placeholder="Deutschland"
+            placeholder="Germany"
             className="w-full border-gray-300 rounded-lg p-2 border"
           />
         </div>
 
         {/* Current Password */}
-        <div>
+        <div className="relative">
           <label className="block text-sm font-medium mb-1">
             Current Password
           </label>
           <input
-            type="password"
+            type={showCurrent ? "text" : "password"}
             name="currentPassword"
             value={form.currentPassword}
             onChange={onChange}
             className="w-full border-gray-300 rounded-lg p-2 border"
             placeholder="Enter current password"
           />
+          <button
+            type="button"
+            onClick={() => setShowCurrent(!showCurrent)}
+            className="absolute right-2 top-9 text-sm text-gray-600"
+          >
+            {showCurrent ? "Hide" : "Show"}
+          </button>
         </div>
 
         {/* New Password */}
-        <div>
+        <div className="relative">
           <label className="block text-sm font-medium mb-1">New Password</label>
           <input
-            type="password"
+            type={showNew ? "text" : "password"}
             name="newPassword"
             value={form.newPassword}
             onChange={onChange}
             className="w-full border-gray-300 rounded-lg p-2 border"
             placeholder="Enter new password"
           />
+          <button
+            type="button"
+            onClick={() => setShowNew(!showNew)}
+            className="absolute right-2 top-9 text-sm text-gray-600"
+          >
+            {showNew ? "Hide" : "Show"}
+          </button>
         </div>
 
         {/* Confirm Password */}
-        <div>
+        <div className="relative">
           <label className="block text-sm font-medium mb-1">
             Confirm Password
           </label>
           <input
-            type="password"
+            type={showConfirm ? "text" : "password"}
             name="confirmNewPassword"
             value={form.confirmNewPassword}
             onChange={onChange}
             className="w-full border-gray-300 rounded-lg p-2 border"
             placeholder="Repeat new password"
           />
+          <button
+            type="button"
+            onClick={() => setShowConfirm(!showConfirm)}
+            className="absolute right-2 top-9 text-sm text-gray-600"
+          >
+            {showConfirm ? "Hide" : "Show"}
+          </button>
         </div>
 
         {/* Actions */}

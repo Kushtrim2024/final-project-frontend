@@ -253,16 +253,16 @@ export default function ProfilePage() {
         ) : defaultAddress ? (
           <div className="mt-1 mb-3 block w-full rounded-md border-gray-300 shadow-sm p-2 border">
             <p className="font-medium">{defaultAddress.title}</p>
-            <div className="flex flex-col text-sm text-gray-700">
+            <div className="flex text-sm text-gray-700">
               {defaultAddress.name && <p>{defaultAddress.name}</p>}
               {defaultAddress.phone && <p>{defaultAddress.phone}</p>}
               <p>
-                {defaultAddress.street}
+                {defaultAddress.street}-
                 {defaultAddress.street2 ? `, ${defaultAddress.street2}` : ""}
               </p>
               <p>
-                {defaultAddress.postalCode}, {defaultAddress.city}
-                {defaultAddress.state ? `, ${defaultAddress.state}` : ""}
+                {defaultAddress.postalCode}- {defaultAddress.city}
+                {defaultAddress.state ? `, ${defaultAddress.state}` : ""}-
               </p>
               <p>{defaultAddress.country}</p>
             </div>
