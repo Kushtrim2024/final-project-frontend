@@ -19,9 +19,9 @@ const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5517";
 
 const SETTINGS_ROUTE_BY_ROLE = {
-  restaurant: "/dashboard/restaurant",
-  user: "/dashboard/user",
-  admin: "/dashboard",
+  restaurant: "/restaurantmanagement",
+  user: "/usermanagement",
+  admin: "/admin",
 };
 
 const CATEGORIES = [
@@ -70,27 +70,37 @@ function parseJwt(token) {
     return null;
   }
 }
+
 function normalizeRole(r, obj) {
   const s = (r || "").toString().toLowerCase();
-  if (["owner", "restaurantowner", "restaurant_owner"].includes(s))
+  if (
+    ["restaurant", "owner", "restaurantowner", "restaurant_owner"].includes(s)
+  )
     return "restaurant";
-  if (["customer"].includes(s)) return "user";
+  if (["user", "customer"].includes(s)) return "user";
   if (!s && (obj?.restaurantId || obj?.restaurant || obj?.ownerId))
     return "restaurant";
   return s || null;
 }
+
+// role-aware display name
 function pickDisplayName(u) {
-  return (
-    u?.name ||
-    u?.fullName ||
-    u?.username ||
-    u?.restaurantName ||
-    u?.email ||
-    null
-  );
+  const role = (u?.role || "").toLowerCase();
+  if (role === "restaurant") {
+    return (
+      u?.ownerName ||
+      u?.restaurantName ||
+      u?.name ||
+      u?.fullName ||
+      u?.username ||
+      u?.email ||
+      null
+    );
+  }
+  return u?.name || u?.fullName || u?.username || u?.email || null;
 }
+
 function mergeUserShape(anyJson) {
-  // farklı backendlere göre muhtemel kökler
   const u =
     anyJson?.user ||
     anyJson?.data ||
@@ -105,13 +115,19 @@ function mergeUserShape(anyJson) {
     role: normalizeRole(u.role || u.type, u),
     restaurantId: u.restaurantId || u.ownerId || null,
     email: u.email || null,
+    restaurantName: u.restaurantName || null,
+    ownerName:
+      u.ownerName ||
+      u?.owner?.name ||
+      (u.firstName && u.lastName ? `${u.firstName} ${u.lastName}` : null) ||
+      null,
   };
   if (!out.role && (u.restaurantId || u.ownerId)) out.role = "restaurant";
   if (!out.role) out.role = "user";
   return out;
 }
 
-/** localStorage + JWT’den oku */
+/** localStorage + JWT (bootstrap) */
 function getAuthLocal() {
   const auth = safeJson(localStorage.getItem("auth")) || {};
   const userObj =
@@ -131,7 +147,7 @@ function getAuthLocal() {
     localStorage.getItem("jwt") ||
     null;
 
-  let userLike = { ...auth.user, ...auth, ...userObj, ...ownerObj };
+  const userLike = { ...auth.user, ...auth, ...userObj, ...ownerObj };
   let role = normalizeRole(
     auth.role ||
       userObj?.role ||
@@ -161,7 +177,6 @@ function getAuthLocal() {
   return { token, role, name, restaurantId };
 }
 
-/** backend’ten kesinleştir */
 async function fetchMe(token) {
   const endpoints = [
     "/auth/me",
@@ -249,7 +264,6 @@ export default function Header() {
     return () => document.removeEventListener("click", onDocClick);
   }, []);
 
-  // login durumu (local -> backend)
   useEffect(() => {
     async function run() {
       const local = getAuthLocal();
@@ -330,6 +344,14 @@ export default function Header() {
 
   const settingsHref = (role && SETTINGS_ROUTE_BY_ROLE[role]) || "/settings";
 
+  const LoadingDots = () => (
+    <span className="inline-flex gap-0.5 align-middle ml-1">
+      <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-pulse" />
+      <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-pulse [animation-delay:120ms]" />
+      <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-pulse [animation-delay:240ms]" />
+    </span>
+  );
+
   return (
     <header className="fixed top-0 z-50 flex flex-col w-full h-36 max-[700px]:h-44 transition-colors duration-300 bg-orange-200/25 backdrop-blur-md shadow-md ">
       <div className="relative w-full h-32 flex items-center justify-center mt-2 mx-auto  max-[700px]:mt-10">
@@ -346,7 +368,7 @@ export default function Header() {
           </Link>
         </section>
 
-        {/* Kategoriler */}
+        {/* categories--------------------------------------------------------------------- */}
         <nav aria-label="Categories" className="relative flex justify-center ">
           <div
             ref={railRef}
@@ -390,67 +412,126 @@ export default function Header() {
           </div>
         </nav>
 
-        {/* Sağ aksiyonlar */}
+        {/* recht actions */}
         <section className="absolute right-20 bottom-15 space-x-2 lg:w-70 sm:w-40 flex items-center justify-end mr-2">
-          {/* Restaurant owner login olduysa: isim + dropdown, değilse Partner with us */}
-          {authChecked && role === "restaurant" ? (
-            <div className="relative" ref={restMenuRef}>
-              <button
-                className="text-gray-800 hover:text-red-500 transition-all duration-200 transform hover:translate-y-1 flex items-center cursor-pointer rounded-md px-2 py-1 bg-white/50"
-                onClick={() => {
-                  setShowRestaurantMenu((v) => !v);
-                  setShowUserMenu(false);
-                }}
+          {/* Restaurant owner */}
+          {authChecked ? (
+            role === "restaurant" ? (
+              <div className="relative" ref={restMenuRef}>
+                <button
+                  className="text-gray-800 hover:text-red-500 transition-all duration-200 transform hover:translate-y-1 flex items-center cursor-pointer rounded-md px-2 py-1 bg-white/50"
+                  onClick={() => {
+                    setShowRestaurantMenu((v) => !v);
+                    setShowUserMenu(false);
+                  }}
+                >
+                  <FontAwesomeIcon icon={faStore} className="h-4 w-4 mr-1" />
+                  <span className="hidden min-[1050px]:block font-medium">
+                    {displayName || "Owner"}
+                  </span>
+                  <FontAwesomeIcon
+                    icon={faAngleDown}
+                    className="h-3 w-3 ml-1"
+                  />
+                </button>
+                {showRestaurantMenu && (
+                  <div className="absolute right-0 mt-2 w-48 rounded-lg bg-white shadow-lg ring-1 ring-black/10 overflow-hidden">
+                    <Link
+                      href={settingsHref}
+                      className="flex items-center gap-2 px-3 py-2 text-sm text-gray-800 hover:bg-gray-50"
+                      onClick={() => setShowRestaurantMenu(false)}
+                    >
+                      <FontAwesomeIcon icon={faGear} className="h-4 w-4" />
+                      <span>Settings</span>
+                    </Link>
+                    <button
+                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50"
+                      onClick={handleLogout}
+                    >
+                      <FontAwesomeIcon
+                        icon={faRightFromBracket}
+                        className="h-4 w-4"
+                      />
+                      <span>Logout</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <Link
+                href="/partnerwithus"
+                className="text-gray-800 hover:text-red-500 transition-all duration-200 transform hover:translate-y-1 flex items-center cursor-pointer"
               >
-                <FontAwesomeIcon icon={faStore} className="h-4 w-4 mr-1" />
-                <span className="hidden min-[1050px]:block font-medium">
-                  {displayName || "Restaurant"}
+                <FontAwesomeIcon icon={faStore} className="h-4 w-4 mr-0.5" />
+                <span className="hidden min-[1050px]:block">
+                  Partner with us
                 </span>
-                <FontAwesomeIcon icon={faAngleDown} className="h-3 w-3 ml-1" />
-              </button>
-              {showRestaurantMenu && (
-                <div className="absolute right-0 mt-2 w-48 rounded-lg bg-white shadow-lg ring-1 ring-black/10 overflow-hidden">
-                  <Link
-                    href={settingsHref}
-                    className="flex items-center gap-2 px-3 py-2 text-sm text-gray-800 hover:bg-gray-50"
-                    onClick={() => setShowRestaurantMenu(false)}
-                  >
-                    <FontAwesomeIcon icon={faGear} className="h-4 w-4" />
-                    <span>Settings</span>
-                  </Link>
-                  <button
-                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50"
-                    onClick={handleLogout}
-                  >
-                    <FontAwesomeIcon
-                      icon={faRightFromBracket}
-                      className="h-4 w-4"
-                    />
-                    <span>Logout</span>
-                  </button>
-                </div>
-              )}
-            </div>
+              </Link>
+            )
           ) : (
-            <Link
-              href="/partnerwithus"
-              className="text-gray-800 hover:text-red-500 transition-all duration-200 transform hover:translate-y-1 flex items-center cursor-pointer"
-            >
-              <FontAwesomeIcon icon={faStore} className="h-4 w-4 mr-0.5" />
-              <span className="hidden min-[1050px]:block">Partner with us</span>
-            </Link>
+            <div className="text-gray-800 flex items-center">
+              <FontAwesomeIcon icon={faStore} className="h-4 w-4 mr-1" />
+              <span className="hidden min-[1050px]:block">
+                Loading
+                <LoadingDots />
+              </span>
+            </div>
           )}
 
-          {/* User login olduysa: isim + dropdown, değilse Account */}
-          {authChecked && role === "user" ? (
-            <div className="relative" ref={userMenuRef}>
-              <button
-                className="text-gray-800 hover:text-red-500 transition-all duration-200 transform hover:translate-y-1 flex items-center cursor-pointer rounded-md px-2 py-1 bg-white/50"
-                onClick={() => {
-                  setShowUserMenu((v) => !v);
-                  setShowRestaurantMenu(false);
-                }}
+          {/* User */}
+          {authChecked ? (
+            role === "user" ? (
+              <div className="relative" ref={userMenuRef}>
+                <button
+                  className="text-gray-800 hover:text-red-500 transition-all duration-200 transform hover:translate-y-1 flex items-center cursor-pointer rounded-md px-2 py-1 bg-white/50"
+                  onClick={() => {
+                    setShowUserMenu((v) => !v);
+                    setShowRestaurantMenu(false);
+                  }}
+                >
+                  <FontAwesomeIcon icon={faUser} className="h-5 w-5 mr-1" />
+                  <span className="hidden min-[1050px]:block font-medium">
+                    {displayName || "Account"}
+                  </span>
+                  <FontAwesomeIcon
+                    icon={faAngleDown}
+                    className="h-3 w-3 ml-1"
+                  />
+                </button>
+                {showUserMenu && (
+                  <div className="absolute right-0 mt-2 w-48 rounded-lg bg-white shadow-lg ring-1 ring-black/10 overflow-hidden">
+                    <Link
+                      href={settingsHref}
+                      className="flex items-center gap-2 px-3 py-2 text-sm text-gray-800 hover:bg-gray-50"
+                      onClick={() => setShowUserMenu(false)}
+                    >
+                      <FontAwesomeIcon icon={faGear} className="h-4 w-4" />
+                      <span>Settings</span>
+                    </Link>
+                    <button
+                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50"
+                      onClick={handleLogout}
+                    >
+                      <FontAwesomeIcon
+                        icon={faRightFromBracket}
+                        className="h-4 w-4"
+                      />
+                      <span>Logout</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <Link
+                href="/login"
+                className="text-gray-800 hover:text-red-500 transition-all duration-200 transform hover:translate-y-1 flex items-center cursor-pointer"
               >
+
+                <FontAwesomeIcon icon={faUser} className="h-5 w-5 mr-0.5" />
+                <span className="hidden min-[1050px]:block">Account</span>
+              </Link>
+            )
+
                 <FontAwesomeIcon icon={faUser} className="h-5 w-5 mr-1" />
                 <span className="hidden min-[1050px]:block font-medium">
                   {displayName || "Account"}
@@ -480,17 +561,18 @@ export default function Header() {
                 </div>
               )}
             </div>
+
           ) : (
-            <Link
-              href="/login"
-              className="text-gray-800 hover:text-red-500 transition-all duration-200 transform hover:translate-y-1 flex items-center cursor-pointer"
-            >
-              <FontAwesomeIcon icon={faUser} className="h-5 w-5 mr-0.5" />
-              <span className="hidden min-[1050px]:block">Account</span>
-            </Link>
+            <div className="text-gray-800 flex items-center">
+              <FontAwesomeIcon icon={faUser} className="h-5 w-5 mr-1" />
+              <span className="hidden min-[1050px]:block">
+                Loading
+                <LoadingDots />
+              </span>
+            </div>
           )}
 
-          {/* Sepet */}
+          {/* cart */}
           <Link
             href="/cart"
             className="text-gray-800 hover:text-red-500 transition-all duration-200 transform hover:translate-y-1 flex items-center cursor-pointer"

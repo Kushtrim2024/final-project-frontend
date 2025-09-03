@@ -8,6 +8,14 @@ const API_BASE = "http://localhost:5517"; // ⬅️ WICHTIG: /owner, nicht /user
 const LOGIN_URL = `${API_BASE}/owner/login`; // ⬅️ WICHTIG: owner, nicht user
 const REGISTER_URL = `${API_BASE}/owner/register`; // falls Owner-Registrierung genutzt wird
 
+
+// ---- API Endpoints (zentral) ----
+const API_BASE = "http://localhost:5517"; // ⬅️ WICHTIG: /owner, nicht /user
+const LOGIN_URL = `${API_BASE}/owner/login`; // ⬅️ WICHTIG: owner, nicht user
+const REGISTER_URL = `${API_BASE}/owner/register`; // falls Owner-Registrierung genutzt wird
+
+
+
 export default function PartnerPage() {
   const router = useRouter();
 
@@ -72,6 +80,22 @@ export default function PartnerPage() {
 
       const data = await res.json();
 
+
+      const token = data?.token || data?.accessToken || data?.authToken || null;
+
+      const owner = data?.owner || data?.user || data?.data || {};
+      const ownerName =
+        owner?.ownerName ||
+        owner?.name ||
+        (owner?.firstName && owner?.lastName
+          ? `${owner.firstName} ${owner.lastName}`
+          : null);
+      const restaurantName =
+        owner?.restaurantName || owner?.restaurant?.name || null;
+      const restaurantId =
+        owner?.restaurantId || owner?.restaurant?._id || owner?.ownerId || null;
+      const email = owner?.email || loginForm.email || null;
+
       // Token + Ownerdaten speichern (rolle "restaurant")
       const token = data?.token;
       const owner = data?.owner || data?.user || {};
@@ -93,7 +117,11 @@ export default function PartnerPage() {
           JSON.stringify({
             token,
             user: {
-              id: owner?._id || owner?.id || null,
+
+              id: owner?.id || owner?._id || owner?.userId || null,
+
+ 
+
               role: "restaurant",
               ownerName,
               restaurantName,
@@ -105,8 +133,11 @@ export default function PartnerPage() {
       }
 
       setLoginMsg("Logged in successfully.");
+
+  
       // Weiter zur Management-Seite
       router.push("/restaurantmanagement/menumanagement");
+
     } catch (err) {
       setLoginMsg(err.message || "Could not log in.");
     } finally {
@@ -177,10 +208,13 @@ export default function PartnerPage() {
         body: JSON.stringify(payload),
       });
 
+
+
       if (!res.ok) {
         const txt = await res.text().catch(() => "");
         throw new Error(`Register failed (${res.status}) ${txt}`);
       }
+
 
       setRegisterMsg("Registered successfully. You can now log in.");
       setTimeout(() => {
