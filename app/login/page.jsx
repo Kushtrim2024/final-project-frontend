@@ -12,7 +12,7 @@ function LoginPage() {
   useEffect(() => {
     if (session?.user) {
       console.log("User info:", session.user);
-      // 👈 session.user.email و session.user.name اینجاست
+      // 👈 session.user.email و session.user.name
       router.push("/usermanagement");
     }
   }, [session]);
@@ -236,7 +236,6 @@ function LoginPage() {
               </div>
 
               {/* Password, Confirm, Phone, Address ... */}
-              {/* بقیه فرم همان ساختار قبلی بدون تغییر */}
 
               {registerError && (
                 <p className="text-red-600 text-sm">{registerError}</p>
