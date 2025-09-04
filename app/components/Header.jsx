@@ -526,42 +526,10 @@ export default function Header() {
                 href="/login"
                 className="text-gray-800 hover:text-red-500 transition-all duration-200 transform hover:translate-y-1 flex items-center cursor-pointer"
               >
-
                 <FontAwesomeIcon icon={faUser} className="h-5 w-5 mr-0.5" />
                 <span className="hidden min-[1050px]:block">Account</span>
               </Link>
             )
-
-                <FontAwesomeIcon icon={faUser} className="h-5 w-5 mr-1" />
-                <span className="hidden min-[1050px]:block font-medium">
-                  {displayName || "Account"}
-                </span>
-                <FontAwesomeIcon icon={faAngleDown} className="h-3 w-3 ml-1" />
-              </button>
-              {showUserMenu && (
-                <div className="absolute right-0 mt-2 w-48 rounded-lg bg-white shadow-lg ring-1 ring-black/10 overflow-hidden">
-                  <Link
-                    href={settingsHref}
-                    className="flex items-center gap-2 px-3 py-2 text-sm text-gray-800 hover:bg-gray-50"
-                    onClick={() => setShowUserMenu(false)}
-                  >
-                    <FontAwesomeIcon icon={faGear} className="h-4 w-4" />
-                    <span>Settings</span>
-                  </Link>
-                  <button
-                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50"
-                    onClick={handleLogout}
-                  >
-                    <FontAwesomeIcon
-                      icon={faRightFromBracket}
-                      className="h-4 w-4"
-                    />
-                    <span>Login</span>
-                  </button>
-                </div>
-              )}
-            </div>
-
           ) : (
             <div className="text-gray-800 flex items-center">
               <FontAwesomeIcon icon={faUser} className="h-5 w-5 mr-1" />
