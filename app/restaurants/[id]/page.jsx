@@ -4,15 +4,17 @@ import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 
-/** CONFIG */
+/* =============================================================================
+   Config
+============================================================================= */
 const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5517";
-const CART_API_BASE = process.env.NEXT_PUBLIC_CART_API_BASE || API_BASE; // /cart endpoints
+const CART_API_BASE = process.env.NEXT_PUBLIC_CART_API_BASE || API_BASE;
 const PAGE_SIZE = 9;
 
-/** ---------- Helpers (deterministic images & urls) ---------- */
-
-/** Simple deterministic hash -> positive integer */
+/* =============================================================================
+   Stable image helpers (SSR-safe; no Math.random)
+============================================================================= */
 function hashInt(str) {
   const s = String(str ?? "");
   let h = 0;
@@ -22,15 +24,11 @@ function hashInt(str) {
   }
   return Math.abs(h);
 }
-
-/** Pick stable index from array length and seed */
 function pickIndex(arrLen, seed) {
   if (!arrLen) return 0;
   const h = hashInt(seed);
   return h % arrLen;
 }
-
-/** Deterministic restaurant image (seeded) */
 function seededRestaurantImage(seed, w = 1400, h = 900) {
   const unsplashFixed = [
     `https://images.unsplash.com/photo-1528605248644-14dd04022da1?q=80&w=${w}&auto=format&fit=crop`,
@@ -39,23 +37,16 @@ function seededRestaurantImage(seed, w = 1400, h = 900) {
     `https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?q=80&w=${w}&auto=format&fit=crop`,
     `https://images.unsplash.com/photo-1559339352-11d035aa65de?q=80&w=${w}&auto=format&fit=crop`,
   ];
-
   const picsum = `https://picsum.photos/seed/${hashInt(seed)}/${w}/${h}`;
   const pool = [...unsplashFixed, picsum];
   return pool[pickIndex(pool.length, seed)];
 }
-
-/** Fallback alternative */
 function seededAlt(seed, w, h) {
   return seededRestaurantImage(`${seed}-alt`, w, h);
 }
-
-/** Check valid HTTP URL */
 function isHttpUrl(u) {
   return typeof u === "string" && /^https?:\/\//i.test(u);
 }
-
-/** Pick best cover from restaurant object */
 function pickBestCover(r, seed) {
   const cand = [
     r?.image,
@@ -82,12 +73,143 @@ async function fetchJSON(url) {
   }
 }
 
-/** Plain object check */
+/* =============================================================================
+   Auth helpers (JWT in localStorage)
+============================================================================= */
+function decodeJwtPayload(token) {
+  try {
+    const base = token.split(".")[1];
+    const json = atob(base.replace(/-/g, "+").replace(/_/g, "/"));
+    return JSON.parse(decodeURIComponent(escape(json)));
+  } catch {
+    try {
+      const base = token.split(".")[1];
+      const json = atob(base);
+      return JSON.parse(json);
+    } catch {
+      return {};
+    }
+  }
+}
+function getAuthFromStorage() {
+  if (typeof window === "undefined")
+    return {
+      token: null,
+      userId: null,
+      name: null,
+      email: null,
+      role: null,
+      user: null,
+    };
+
+  const TOKEN_KEYS = ["liefrik_token", "token", "auth_token"];
+  const USER_ID_KEYS = ["liefrik_user_id", "userId", "user_id"];
+  const AUTH_KEYS = ["auth", "liefrik_auth"];
+
+  let token = null;
+  for (const k of TOKEN_KEYS) {
+    const v = localStorage.getItem(k);
+    if (v) {
+      token = v;
+      break;
+    }
+  }
+
+  // Try stored 'auth' object for richer info
+  let authObj = null;
+  for (const k of AUTH_KEYS) {
+    const raw = localStorage.getItem(k);
+    if (raw) {
+      try {
+        authObj = JSON.parse(raw);
+        break;
+      } catch {}
+    }
+  }
+
+  let name = authObj?.user?.name || authObj?.name || null;
+  let email = authObj?.user?.email || authObj?.email || null;
+  let role = authObj?.user?.role || authObj?.role || null;
+
+  let userId =
+    authObj?.user?.id ||
+    authObj?.user?._id ||
+    authObj?.id ||
+    authObj?._id ||
+    null;
+
+  if (!userId) {
+    for (const k of USER_ID_KEYS) {
+      const v = localStorage.getItem(k);
+      if (v) {
+        userId = v;
+        break;
+      }
+    }
+  }
+
+  // Fallback: try decode JWT payload
+  if (token && !userId) {
+    const p = decodeJwtPayload(token);
+    userId = p?.id || p?._id || p?.userId || null;
+    role = role || p?.role || null;
+  }
+
+  const user = userId ? { id: userId, name, email, role } : null;
+  return { token, userId, name, email, role, user };
+}
+
+async function ensureAuthProfileCache() {
+  if (typeof window === "undefined") return;
+  const { token, name } = getAuthFromStorage();
+  if (!token || name) return;
+  try {
+    const res = await fetch(`${API_BASE}/user/profile`, {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: "no-store",
+    });
+    if (res.ok) {
+      const u = await res.json();
+      const auth = {
+        token,
+        user: {
+          id: u?._id || u?.id,
+          name: u?.name || null,
+          email: u?.email || null,
+          role: u?.role || "user",
+        },
+      };
+      localStorage.setItem("auth", JSON.stringify(auth));
+    }
+  } catch {}
+}
+
+async function authFetchJSON(url, { method = "GET", body } = {}) {
+  const { token } = getAuthFromStorage();
+  const headers = {
+    "Content-Type": "application/json",
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+  const res = await fetch(url, {
+    method,
+    headers,
+    body: body ? JSON.stringify(body) : undefined,
+    cache: "no-store",
+  });
+  const text = await res.text();
+  let json = null;
+  try {
+    json = text ? JSON.parse(text) : null;
+  } catch {}
+  return { ok: res.ok, status: res.status, json };
+}
+
+/* =============================================================================
+   Menu normalization + pricing
+============================================================================= */
 function isPlainObject(v) {
   return v && typeof v === "object" && !Array.isArray(v);
 }
-
-/** Choose base price from item (handles sizes) */
 function pickBasePrice(x) {
   if (
     typeof x.basePrice === "number" ||
@@ -111,11 +233,8 @@ function pickBasePrice(x) {
   }
   return 0;
 }
-
-/** Normalize menu items (supports array OR grouped object) */
 function normalizeMenu(input) {
   const flat = [];
-
   const pushItem = (x, cat) => {
     const id =
       x._id ||
@@ -142,6 +261,7 @@ function normalizeMenu(input) {
         typeof x.basePrice !== "undefined" ? Number(x.basePrice) : undefined,
       sizes: Array.isArray(x.sizes) ? x.sizes : [],
       addOns: Array.isArray(x.addOns) ? x.addOns : [],
+      status: x.status || "available",
       raw: x,
     });
   };
@@ -159,32 +279,11 @@ function normalizeMenu(input) {
   return flat;
 }
 
-/** PRICE HELPERS FOR MODAL */
-function priceOfSize(sizes, label) {
-  if (!Array.isArray(sizes) || sizes.length === 0) return 0;
-  const s = sizes.find((x) => x.label === label) || sizes[0];
-  const p = typeof s?.price === "number" ? s.price : Number(s?.price ?? 0) || 0;
-  return p;
-}
-
-function calcItemTotal(item, selectedSizeLabel, chosenAddOns, qty) {
-  const base =
-    Array.isArray(item.sizes) && item.sizes.length > 0
-      ? priceOfSize(item.sizes, selectedSizeLabel)
-      : item.basePrice ?? item.price ?? 0;
-
-  const addOnSum = (chosenAddOns || []).reduce((sum, n) => {
-    const a = (item.addOns || []).find((x) => x.name === n);
-    const ap =
-      typeof a?.price === "number" ? a.price : Number(a?.price ?? 0) || 0;
-    return sum + ap;
-  }, 0);
-
-  return (base + addOnSum) * (qty || 1);
-}
-
-/** ---------- Global Cart helpers (localStorage) ---------- */
+/* =============================================================================
+   Cart helpers (shared with Home page)
+============================================================================= */
 const CART_KEY = "liefrik_cart_v1";
+
 function readCart() {
   try {
     const raw =
@@ -200,31 +299,17 @@ function writeCart(items) {
     localStorage.setItem(CART_KEY, JSON.stringify(items || []));
   } catch {}
 }
-
-/** ---------- Optional auth fetch (for server cart API) ---------- */
-function getAuthFromStorage() {
-  if (typeof window === "undefined") return { token: null, userId: null };
-  const TOKEN_KEYS = ["liefrik_token", "token", "auth_token"];
-  const USER_ID_KEYS = ["liefrik_user_id", "userId", "user_id"];
-  let token = null;
-  let userId = null;
-  for (const k of TOKEN_KEYS) {
-    const v = localStorage.getItem(k);
-    if (v) {
-      token = v;
-      break;
-    }
-  }
-  for (const k of USER_ID_KEYS) {
-    const v = localStorage.getItem(k);
-    if (v) {
-      userId = v;
-      break;
-    }
-  }
-  return { token, userId };
+function lineExtrasSum(addOnsDetailed) {
+  if (!Array.isArray(addOnsDetailed)) return 0;
+  return addOnsDetailed.reduce((s, a) => s + (Number(a.price) || 0), 0);
+}
+function lineTotal(it) {
+  const extras = lineExtrasSum(it.selectedAddOnsDetailed);
+  const qty = Number(it.qty) || 1;
+  return (Number(it.unitPrice) + extras) * qty;
 }
 
+/** (optional) server cart */
 async function addToCartServer({
   userId,
   token,
@@ -245,12 +330,11 @@ async function addToCartServer({
         menuItemId,
         quantity,
         size,
-        addOns, // [{name, price}]
+        addOns,
       }),
     });
     if (!res.ok) {
       const t = await res.text();
-      // Go silently (UI is running locally), console for debug
       console.warn("addToCartServer failed:", res.status, t);
     }
   } catch (e) {
@@ -258,11 +342,483 @@ async function addToCartServer({
   }
 }
 
-/** PAGE */
+/* =============================================================================
+   Pricing helpers (modal)
+============================================================================= */
+function priceOfSize(sizes, label) {
+  if (!Array.isArray(sizes) || sizes.length === 0) return 0;
+  const s = sizes.find((x) => x.label === label) || sizes[0];
+  const p = typeof s?.price === "number" ? s.price : Number(s?.price ?? 0) || 0;
+  return p;
+}
+function calcItemTotal(item, selectedSizeLabel, chosenAddOns, qty) {
+  const base =
+    Array.isArray(item.sizes) && item.sizes.length > 0
+      ? priceOfSize(item.sizes, selectedSizeLabel)
+      : item.basePrice ?? item.price ?? 0;
+
+  const addOnSum = (chosenAddOns || []).reduce((sum, n) => {
+    const a = (item.addOns || []).find((x) => x.name === n);
+    const ap =
+      typeof a?.price === "number" ? a.price : Number(a?.price ?? 0) || 0;
+    return sum + ap;
+  }, 0);
+
+  return (base + addOnSum) * (qty || 1);
+}
+
+/* =============================================================================
+   Shared pagination helper
+============================================================================= */
+function getPageButtons(current, total) {
+  if (total <= 1) return [1];
+
+  current = Math.max(1, Math.min(current, total));
+
+  const pages = [1];
+
+  if (current > 2) {
+    pages.push("…");
+  }
+
+  if (current !== 1 && current !== total) {
+    pages.push(current);
+  }
+
+  if (current < total - 1) {
+    pages.push("…");
+  }
+
+  if (total !== 1) {
+    pages.push(total);
+  }
+
+  return pages;
+}
+
+/* =============================================================================
+   Ratings UI (unchanged)
+============================================================================= */
+function Stars({ value = 0, size = "text-xl" }) {
+  const full = Math.floor(value);
+  const half = value - full >= 0.5;
+  return (
+    <div className={`inline-flex items-center ${size} leading-none`}>
+      {Array.from({ length: 5 }).map((_, i) => {
+        const idx = i + 1;
+        const state =
+          idx <= full ? "full" : idx === full + 1 && half ? "half" : "empty";
+        return (
+          <span key={i} aria-hidden className="mr-1">
+            {state === "full" ? "★" : state === "half" ? "☆" : "☆"}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
+function RatingItem({ r, canEdit, onEdit, onDelete }) {
+  const dtISO = r?.createdAt
+    ? new Date(r.createdAt).toISOString().slice(0, 16).replace("T", " ") + "Z"
+    : "";
+  const who =
+    r?.userId?.name ||
+    r?.userId?.email ||
+    (typeof r?.userId === "string" ? r.userId : "User");
+  return (
+    <div className="rounded-xl bg-white p-4 ring-1 ring-black/5">
+      <div className="flex items-start justify-between">
+        <div>
+          <div className="flex items-center gap-2">
+            <Stars value={r.rating} size="text-base" />
+            <span className="text-sm font-semibold text-slate-800">
+              {r.rating}/5
+            </span>
+          </div>
+          <p className="mt-1 text-sm text-slate-700 whitespace-pre-wrap">
+            {r.comment || "—"}
+          </p>
+          <div className="mt-2 text-xs text-slate-500">
+            {who} • {dtISO}
+          </div>
+        </div>
+        {canEdit && (
+          <div className="ml-3 flex gap-2">
+            <button
+              onClick={onEdit}
+              className="rounded-md px-2 py-1 text-xs ring-1 ring-slate-200 hover:bg-slate-50"
+            >
+              Edit
+            </button>
+            <button
+              onClick={onDelete}
+              className="rounded-md px-2 py-1 text-xs text-white bg-rose-600 hover:bg-rose-700"
+            >
+              Delete
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** RatingsSection (unchanged) */
+function RatingsSection({ restaurantId }) {
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [list, setList] = useState([]);
+  const [avg, setAvg] = useState(0);
+  const [total, setTotal] = useState(0);
+
+  const RPP = 5;
+  const [rPage, setRPage] = useState(1);
+  const [ratingMin, setRatingMin] = useState(0);
+
+  const [myRating, setMyRating] = useState(0);
+  const [myComment, setMyComment] = useState("");
+  const [isEditing, setIsEditing] = useState(false);
+
+  const [auth, setAuth] = useState({ ready: false, token: null, userId: null });
+  useEffect(() => {
+    const a = getAuthFromStorage();
+    setAuth({ ready: true, token: a.token, userId: a.userId });
+  }, []);
+  const isLoggedIn = auth.ready && Boolean(auth.token);
+
+  async function load() {
+    setLoading(true);
+    setError(null);
+    const url = `${API_BASE}/restaurants/${restaurantId}/ratings`;
+    try {
+      const res = await fetch(url, { cache: "no-store" });
+      if (!res.ok) throw new Error(`Failed to load ratings (${res.status})`);
+      const data = await res.json();
+
+      const arr = Array.isArray(data?.ratings) ? [...data.ratings] : [];
+      const tsOf = (r) => {
+        if (r?.createdAt) {
+          const t = new Date(r.createdAt).getTime();
+          return isNaN(t) ? 0 : t;
+        }
+        if (r?._id && typeof r._id === "string" && r._id.length >= 8) {
+          const sec = parseInt(r._id.slice(0, 8), 16);
+          return isNaN(sec) ? 0 : sec * 1000;
+        }
+        return 0;
+      };
+      arr.sort((a, b) => tsOf(b) - tsOf(a));
+
+      setList(arr);
+      setAvg(Number(data?.averageRating || 0));
+      setTotal(Number(data?.totalRatings || 0));
+
+      if (auth.ready && auth.userId) {
+        const mine = arr.find((r) => {
+          const rid =
+            (typeof r.userId === "string" && r.userId) || r.userId?._id;
+          return rid === auth.userId;
+        });
+        if (mine) {
+          setMyRating(mine.rating || 0);
+          setMyComment(mine.comment || "");
+          setIsEditing(true);
+        } else {
+          setMyRating(0);
+          setMyComment("");
+          setIsEditing(false);
+        }
+      }
+    } catch (e) {
+      setError(e.message || "Unable to load reviews.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    if (restaurantId && auth.ready) load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [restaurantId, auth.ready, auth.userId]);
+
+  const filteredList =
+    ratingMin > 0 ? list.filter((r) => Number(r.rating) >= ratingMin) : list;
+
+  const rTotalPages = Math.max(1, Math.ceil(filteredList.length / RPP));
+  useEffect(() => {
+    if (rPage > rTotalPages) setRPage(rTotalPages);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filteredList, rTotalPages]);
+  useEffect(() => setRPage(1), [ratingMin]);
+
+  const start = (rPage - 1) * RPP;
+  const end = Math.min(start + RPP, filteredList.length);
+  const pageItems = filteredList.slice(start, end);
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    if (!isLoggedIn) return;
+
+    const payload = { rating: Number(myRating), comment: myComment?.trim() };
+    if (!payload.rating || payload.rating < 1 || payload.rating > 5) {
+      alert("Please choose a rating between 1 and 5.");
+      return;
+    }
+
+    const endpoint = `${API_BASE}/restaurants/${restaurantId}/rating`;
+    const method = isEditing ? "PUT" : "POST";
+    const { ok, json, status } = await authFetchJSON(endpoint, {
+      method,
+      body: payload,
+    });
+
+    if (!ok) {
+      alert(json?.message || `Could not save review (${status}).`);
+      return;
+    }
+
+    await load();
+    setRPage(1);
+  }
+
+  async function handleDelete() {
+    if (!isLoggedIn) return;
+    if (!confirm("Delete your review?")) return;
+
+    const endpoint = `${API_BASE}/restaurants/${restaurantId}/rating`;
+    const { ok, json, status } = await authFetchJSON(endpoint, {
+      method: "DELETE",
+    });
+    if (!ok) {
+      alert(json?.message || `Could not delete review (${status}).`);
+      return;
+    }
+    await load();
+  }
+
+  return (
+    <div className="mt-10">
+      <h3 className="mb-3 text-lg font-bold text-slate-900">
+        Reviews & Ratings
+      </h3>
+
+      {/* summary */}
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        <Stars value={avg} />
+        <span className="text-slate-800 font-semibold">{avg.toFixed(1)}/5</span>
+        <span className="text-slate-500 text-sm">({total} ratings)</span>
+
+        {/* Star filter */}
+        <div className="ml-auto flex items-center gap-2">
+          <span className="text-sm text-slate-600">Filter by rating:</span>
+          {[
+            { v: 0, label: "All" },
+            { v: 5, label: "5★" },
+            { v: 4, label: "4★+" },
+            { v: 3, label: "3★+" },
+            { v: 2, label: "2★+" },
+            { v: 1, label: "1★+" },
+          ].map((o) => (
+            <button
+              key={o.v}
+              onClick={() => setRatingMin(o.v)}
+              className={`rounded-full px-2.5 py-1 text-xs ring-1 ${
+                ratingMin === o.v
+                  ? "bg-rose-600 text-white ring-rose-700"
+                  : "bg-white text-slate-700 ring-slate-200 hover:bg-slate-50"
+              }`}
+              title={
+                o.v === 0
+                  ? "Show all ratings"
+                  : `Show ratings ${o.v} stars and up`
+              }
+            >
+              {o.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* login hint */}
+      {!isLoggedIn && (
+        <div className="mb-4 rounded-lg bg-amber-50 p-3 text-amber-800 ring-1 ring-amber-200">
+          Please{" "}
+          <Link className="underline font-medium" href="/login">
+            sign in
+          </Link>{" "}
+          to write a review.
+        </div>
+      )}
+
+      {/* form */}
+      <form
+        onSubmit={handleSubmit}
+        className={`mb-6 rounded-xl bg-white p-4 ring-1 ring-black/5 ${
+          !isLoggedIn ? "opacity-60 pointer-events-none" : ""
+        }`}
+      >
+        <div className="flex flex-wrap items-center gap-3">
+          <label className="text-sm font-semibold text-slate-800">
+            Your rating
+          </label>
+        </div>
+        <div className="mt-2 inline-flex items-center gap-1">
+          {[1, 2, 3, 4, 5].map((n) => (
+            <button
+              type="button"
+              key={n}
+              onClick={() => setMyRating(n)}
+              className={`h-8 w-8 rounded-md ring-1 ${
+                myRating >= n
+                  ? "bg-yellow-100 ring-yellow-300"
+                  : "bg-white ring-slate-200"
+              }`}
+              aria-label={`${n} star${n > 1 ? "s" : ""}`}
+              title={`${n} star${n > 1 ? "s" : ""}`}
+            >
+              {myRating >= n ? "★" : "☆"}
+            </button>
+          ))}
+        </div>
+
+        <textarea
+          className="mt-3 w-full rounded-lg border border-slate-300 p-3 text-sm focus:outline-none focus:ring-2 focus:ring-slate-200"
+          rows={3}
+          maxLength={1000}
+          placeholder="Share your experience (optional)…"
+          value={myComment}
+          onChange={(e) => setMyComment(e.target.value)}
+        />
+        <div className="mt-3 flex items-center gap-2">
+          <button
+            type="submit"
+            className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-700"
+          >
+            {isEditing ? "Update Review" : "Submit Review"}
+          </button>
+          {isEditing && (
+            <button
+              type="button"
+              onClick={handleDelete}
+              className="rounded-lg px-4 py-2 text-sm ring-1 ring-slate-200 hover:bg-slate-50"
+            >
+              Delete Review
+            </button>
+          )}
+        </div>
+      </form>
+
+      {/* list */}
+      <div className="space-y-3">
+        {loading && <div className="text-sm text-slate-600">Loading…</div>}
+        {error && (
+          <div className="rounded-lg bg-red-50 p-3 text-red-700 ring-1 ring-red-200">
+            {error}
+          </div>
+        )}
+        {!loading && !error && filteredList.length === 0 && (
+          <div className="text-sm text-slate-600">
+            No reviews match the selected filter.
+          </div>
+        )}
+        {!loading &&
+          !error &&
+          pageItems.map((r) => {
+            const rUserId =
+              (typeof r.userId === "string" && r.userId) || r.userId?._id;
+            const mine = Boolean(auth.userId && rUserId === auth.userId);
+            return (
+              <RatingItem
+                key={r._id || `${rUserId}-${r.createdAt}`}
+                r={r}
+                canEdit={mine}
+                onEdit={() => {
+                  setMyRating(r.rating || 0);
+                  setMyComment(r.comment || "");
+                  setIsEditing(true);
+                  if (typeof window !== "undefined") {
+                    window.scrollTo({ top: 0, behavior: "smooth" });
+                  }
+                }}
+                onDelete={handleDelete}
+              />
+            );
+          })}
+      </div>
+
+      {/* pagination bar (ratings) */}
+      {filteredList.length > 0 && rTotalPages > 1 && (
+        <div className="mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="text-xs text-slate-600">
+            Showing {start + 1}–{end} of {filteredList.length}
+            {ratingMin > 0 ? ` (filtered from ${list.length})` : ""}
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setRPage((p) => Math.max(1, p - 1))}
+              disabled={rPage <= 1}
+              className={`rounded-lg px-3 py-2 text-sm ring-1 ${
+                rPage <= 1
+                  ? "cursor-not-allowed bg-white/60 text-slate-400 ring-slate-200"
+                  : "bg-white text-slate-800 ring-slate-200 hover:bg-slate-50"
+              }`}
+              aria-label="Previous page"
+            >
+              ← Prev
+            </button>
+
+            <div className="hidden md:flex items-center gap-1">
+              {getPageButtons(rPage, rTotalPages).map((n, i) =>
+                n === "…" ? (
+                  <span key={`dots-${i}`} className="px-2 text-slate-500">
+                    …
+                  </span>
+                ) : (
+                  <button
+                    key={n}
+                    onClick={() => setRPage(n)}
+                    className={`rounded-md px-3 py-2 text-sm ring-1 ${
+                      n === rPage
+                        ? "bg-rose-600 text-white ring-rose-700"
+                        : "bg-white text-slate-800 ring-slate-200 hover:bg-slate-50"
+                    }`}
+                    aria-current={n === rPage ? "page" : undefined}
+                  >
+                    {n}
+                  </button>
+                )
+              )}
+            </div>
+
+            <button
+              onClick={() => setRPage((p) => Math.min(rTotalPages, p + 1))}
+              disabled={rPage >= rTotalPages}
+              className={`rounded-lg px-3 py-2 text-sm ring-1 ${
+                rPage >= rTotalPages
+                  ? "cursor-not-allowed bg-white/60 text-slate-400 ring-slate-200"
+                  : "bg-white text-slate-800 ring-slate-200 hover:bg-slate-50"
+              }`}
+              aria-label="Next page"
+            >
+              Next →
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* =============================================================================
+   Page component
+============================================================================= */
 export default function RestaurantPage() {
   const params = useParams();
   const router = useRouter();
   const id = params?.id;
+  const [searchQuery, setSearchQuery] = useState("");
 
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState(null);
@@ -274,10 +830,13 @@ export default function RestaurantPage() {
   const [activeCat, setActiveCat] = useState("All");
   const [page, setPage] = useState(1);
 
-  // Cart demo state (visual subtotal)
-  const [subtotal, setSubtotal] = useState(0);
-  const delivery = 8.57;
-  const vatRate = 0.05;
+  // Auth UI (header)
+  const [currentUser, setCurrentUser] = useState(null);
+
+  // ---- Cart (real) ----
+  const [cartItems, setCartItems] = useState([]); // real cart from localStorage
+  const [delivery] = useState(0);
+  const vatRate = 0.07;
 
   // Modal state
   const [modalOpen, setModalOpen] = useState(false);
@@ -286,20 +845,35 @@ export default function RestaurantPage() {
   const [selectedAddOns, setSelectedAddOns] = useState([]);
   const [qty, setQty] = useState(1);
 
-  // Apply LocalStorage cart summary collection on page load
+  // Ensure we have user info cached (name), then set header state
   useEffect(() => {
-    const init = readCart().reduce((sum, it) => {
-      const extras = Array.isArray(it.selectedAddOnsDetailed)
-        ? it.selectedAddOnsDetailed.reduce(
-            (s, a) => s + (Number(a.price) || 0),
-            0
-          )
-        : 0;
-      return sum + (Number(it.unitPrice) + extras) * (Number(it.qty) || 1);
-    }, 0);
-    setSubtotal(+init.toFixed(2));
+    (async () => {
+      await ensureAuthProfileCache();
+      const auth = getAuthFromStorage();
+      setCurrentUser(
+        auth?.user ||
+          (auth.userId
+            ? { id: auth.userId, name: auth.name, email: auth.email }
+            : null)
+      );
+    })();
   }, []);
 
+  function handleLogout() {
+    try {
+      localStorage.removeItem("auth");
+      localStorage.removeItem("token");
+      localStorage.removeItem("role");
+      localStorage.removeItem("userId");
+      localStorage.removeItem("liefrik_user_id");
+    } catch {}
+    setCurrentUser(null);
+    if (typeof window !== "undefined" && window.location) {
+      window.location.reload();
+    }
+  }
+
+  // ---- Load restaurant + menu ----
   useEffect(() => {
     let ignore = false;
     async function load() {
@@ -313,7 +887,6 @@ export default function RestaurantPage() {
         const productsRaw =
           (await fetchJSON(`${API_BASE}/restaurants/${rid}/products`)) || [];
 
-        // Group object/array difference is resolved in normalizeMenu
         const products = normalizeMenu(
           Array.isArray(productsRaw)
             ? productsRaw
@@ -340,30 +913,107 @@ export default function RestaurantPage() {
     };
   }, [id]);
 
-  // categories (dynamic)
+  // Dynamic categories
   const categories = useMemo(() => {
     const set = new Set(menu.map((m) => m.category).filter(Boolean));
     return ["All", ...Array.from(set)];
   }, [menu]);
 
-  // filter + paginate
+  // Filter + paginate menu
   const filtered = useMemo(() => {
-    if (activeCat === "All") return menu;
-    return menu.filter((m) => (m.category || "Other") === activeCat);
-  }, [menu, activeCat]);
+    let items = menu;
+    items = items.filter((m) => (m.status || m.raw?.status) === "available");
+    if (activeCat !== "All") {
+      items = items.filter((m) => (m.category || "Other") === activeCat);
+    }
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase();
+      items = items.filter(
+        (m) =>
+          m.name?.toLowerCase().includes(q) ||
+          m.description?.toLowerCase().includes(q)
+      );
+    }
+    return items;
+  }, [menu, activeCat, searchQuery]);
+
+  const totalActive = useMemo(
+    () =>
+      Array.isArray(menu)
+        ? menu.filter((m) => (m.status || m.raw?.status) === "available").length
+        : 0,
+    [menu]
+  );
+  const visibleCount = Array.isArray(filtered) ? filtered.length : 0;
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const start = (page - 1) * PAGE_SIZE;
   const pageItems = filtered.slice(start, start + PAGE_SIZE);
 
-  // Reset page when category changes
+  // Reset menu page when category changes
   useEffect(() => setPage(1), [activeCat]);
 
-  // derived totals
+  // ---- Real cart: read + cross-tab sync ----
+  useEffect(() => {
+    setCartItems(readCart());
+
+    function handleStorage(e) {
+      if (e.key === CART_KEY) {
+        try {
+          const arr = e.newValue ? JSON.parse(e.newValue) : [];
+          setCartItems(Array.isArray(arr) ? arr : []);
+        } catch {
+          setCartItems([]);
+        }
+      }
+    }
+    function handleFocus() {
+      setCartItems(readCart());
+    }
+
+    window.addEventListener("storage", handleStorage);
+    window.addEventListener("focus", handleFocus);
+    return () => {
+      window.removeEventListener("storage", handleStorage);
+      window.removeEventListener("focus", handleFocus);
+    };
+  }, []);
+
+  // ---- One-time migration: enrich old items with restaurantName for THIS page's restaurant ----
+  useEffect(() => {
+    if (!restaurant) return;
+    const ridNow = restaurant._id || restaurant.id || id;
+    const nameNow =
+      restaurant.restaurantName ||
+      restaurant.title ||
+      restaurant.name ||
+      "Restaurant";
+
+    setCartItems((prev) => {
+      if (!Array.isArray(prev) || prev.length === 0) return prev;
+      let changed = false;
+      const next = prev.map((it) => {
+        const hasName = it.restaurantName || it.restaurantTitle;
+        if (!hasName && String(it.restaurantId) === String(ridNow)) {
+          changed = true;
+          return { ...it, restaurantName: nameNow };
+        }
+        return it;
+      });
+      if (changed) writeCart(next);
+      return changed ? next : prev;
+    });
+  }, [restaurant, id]);
+
+  // Derived totals from real cart
+  const subtotal = useMemo(() => {
+    if (!Array.isArray(cartItems)) return 0;
+    return +cartItems.reduce((s, it) => s + lineTotal(it), 0).toFixed(2);
+  }, [cartItems]);
   const vat = +(subtotal * vatRate).toFixed(2);
   const total = +(subtotal + delivery + vat).toFixed(2);
 
-  // hero data
+  // Hero data
   const rid = restaurant?._id || restaurant?.id || id || "unknown";
   const title =
     restaurant?.restaurantName ||
@@ -376,7 +1026,7 @@ export default function RestaurantPage() {
   const description =
     restaurant?.description || `${title} — delicious meals and more.`;
 
-  /** Modal open helper */
+  /** Modal helper */
   function openItemModal(item) {
     setSelectedItem(item);
     const defaultSize =
@@ -389,11 +1039,10 @@ export default function RestaurantPage() {
     setModalOpen(true);
   }
 
-  /** Add to cart from modal */
+  /** Add to cart from modal (stores restaurantName) */
   async function addConfiguredToCart() {
     if (!selectedItem) return;
 
-    // Remove selected add-ons from price
     const chosenAddOnsDetailed = (selectedItem.addOns || [])
       .filter((a) => selectedAddOns.includes(a.name))
       .map((a) => ({ name: a.name, price: Number(a.price) || 0 }));
@@ -408,30 +1057,42 @@ export default function RestaurantPage() {
           ) || 0
         : selectedItem.basePrice ?? selectedItem.price ?? 0;
 
-    // 1)Write to LocalStorage (instantly update UI)
+    const restaurantName =
+      restaurant?.restaurantName ||
+      restaurant?.title ||
+      restaurant?.name ||
+      "Restaurant";
+
     const itemToAdd = {
       id: selectedItem.id,
       restaurantId: selectedItem.restaurantId,
+      restaurantName,
       name: selectedItem.name,
       img: selectedItem.img,
       qty,
       unitPrice,
       selectedSize,
       selectedAddOnsDetailed: chosenAddOnsDetailed,
+
+      // 👇 EDIT modalının ihtiyaç duyduğu snapshot alanları
+      availableSizes: Array.isArray(selectedItem.sizes)
+        ? selectedItem.sizes.map((s) => ({
+            label: s.label,
+            price: Number(s.price) || 0,
+          }))
+        : [],
+      availableAddOns: Array.isArray(selectedItem.addOns)
+        ? selectedItem.addOns.map((a) => ({
+            name: a.name,
+            price: Number(a.price) || 0,
+          }))
+        : [],
     };
+
     const next = [...readCart(), itemToAdd];
     writeCart(next);
+    setCartItems(next);
 
-    // 2) Update UI subtotal
-    const lineTotal = calcItemTotal(
-      selectedItem,
-      selectedSize,
-      selectedAddOns,
-      qty
-    );
-    setSubtotal((s) => +(s + lineTotal).toFixed(2));
-
-    // 3) (optional) Send to server cart (if token & userId exist)
     const { token, userId } = getAuthFromStorage();
     if (userId) {
       addToCartServer({
@@ -440,16 +1101,51 @@ export default function RestaurantPage() {
         menuItemId: selectedItem.id || selectedItem._id,
         quantity: qty,
         size: selectedSize || undefined,
-        addOns: chosenAddOnsDetailed, // [{name, price}]
+        addOns: chosenAddOnsDetailed,
       });
     }
 
     setModalOpen(false);
   }
 
+  // Cart actions
+  function changeQty(idx, delta) {
+    setCartItems((prev) => {
+      if (!Array.isArray(prev)) return prev;
+      const next = prev.map((x, i) =>
+        i === idx ? { ...x, qty: Math.max(1, Number(x.qty || 1) + delta) } : x
+      );
+      writeCart(next);
+      return [...next];
+    });
+  }
+  function removeItem(idx) {
+    setCartItems((prev) => {
+      if (!Array.isArray(prev)) return prev;
+      const next = prev.filter((_, i) => i !== idx);
+      writeCart(next);
+      return next;
+    });
+  }
+
+  // Group items by restaurant name (never show id)
+  const groupedByRestaurant = useMemo(() => {
+    const groups = new Map();
+    for (const it of cartItems || []) {
+      const key = (
+        it.restaurantName ||
+        it.restaurantTitle ||
+        "Restaurant"
+      ).trim();
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(it);
+    }
+    return groups;
+  }, [cartItems]);
+
   return (
     <div className="min-h-[100dvh] bg-slate-100">
-      {/* HERO ------------------------------------------------------------------------------------------------------ */}
+      {/* HERO ================================================================= */}
       <div className="relative">
         <img
           src={cover}
@@ -464,7 +1160,7 @@ export default function RestaurantPage() {
         <div className="absolute inset-x-0 bottom-10 mx-auto max-w-7xl px-4 ">
           <div className="flex flex-col items-center justify-between">
             <div className="flex flex-row justify-between w-full">
-              {/* Liefrik fixed logo (top-left) */}
+              {/* Left: Home */}
               <Link
                 href="/"
                 className="inline-flex items-center gap-2 rounded-md bg-white/60 px-3 py-1 text-sm font-bold text-gray-800  hover:bg-rose-600 hover:text-white"
@@ -477,12 +1173,34 @@ export default function RestaurantPage() {
                 />
               </Link>
 
-              <div className="hidden text-sm text-gray-800 bg-white/60 px-2 pt-1.5 rounded-sm hover:bg-rose-600 hover:text-white md:block">
-                <Link href="/login">LOG IN / SIGN UP</Link>
+              {/* Right: login or username + logout */}
+              <div className="hidden text-sm text-gray-800 bg-white/60 px-2 p-1.5 rounded-sm md:flex items-center gap-2">
+                {currentUser ? (
+                  <>
+                    <span className="font-semibold">
+                      Welcome, {currentUser.name || "User"}
+                    </span>
+                    <button
+                      onClick={handleLogout}
+                      className="rounded-md px-2 py-1 text-sm bg-orange-400  hover:bg-rose-600 hover:text-white"
+                      title="Logout"
+                    >
+                      Logout
+                    </button>
+                  </>
+                ) : (
+                  <Link
+                    className=" hover:text-white px-2 rounded-sm"
+                    href="/login"
+                  >
+                    LOG IN / SIGN UP
+                  </Link>
+                )}
               </div>
             </div>
-            <div className="flex flex-col justify-start  w-full">
-              <h1 className="mt-3 text-3xl font-extrabold text-white  mb-2">
+
+            <div className="flex flex-col justify-start w-full">
+              <h1 className="mt-3 text-3xl font-extrabold text-white mb-2">
                 {title}
               </h1>
               <p className="max-w-3xl text-white/90">{description}</p>
@@ -491,9 +1209,9 @@ export default function RestaurantPage() {
         </div>
       </div>
 
-      {/* BODY ------------------------------------------------------------------------------------------------------ */}
+      {/* BODY ================================================================= */}
       <div className="mx-auto max-w-7xl px-4 pb-16 lg:flex lg:gap-6">
-        {/* LEFT: menu categories + grid */}
+        {/* LEFT: menu + ratings */}
         <section className="flex-1">
           {/* Category tabs + arrows */}
           <div className="-mt-10 rounded-2xl bg-white/90 shadow-lg ring-1 ring-black/5 backdrop-blur">
@@ -543,7 +1261,34 @@ export default function RestaurantPage() {
               </button>
             </div>
 
-            {/* Info cards: Address / Contact / Hours */}
+            {/* Total product count (top of page) */}
+            <div className="flex items-center w-full h-8 text-sm font-medium text-gray-700 mt-4 pl-4">
+              <div className="bg-gray-100 rounded-full px-4 py-1">
+                {activeCat === "All"
+                  ? `Total products: ${totalActive}`
+                  : `Products in ${activeCat} : ${visibleCount}`}
+              </div>
+              {/* Search box */}
+              <div className="px-4 w-2/3">
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search products..."
+                  className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-200"
+                />
+              </div>
+            </div>
+
+            {/* Results info */}
+            <div className="mt-4 ml-2 px-4 pt-2 text-xs text-slate-600">
+              Showing {visibleCount}{" "}
+              {activeCat === "All" ? "products" : `products in "${activeCat}"`}
+              {searchQuery ? ` matching “${searchQuery}”` : ""} (out of{" "}
+              {totalActive} total).
+            </div>
+
+            {/* Info cards */}
             <div className="mt-4 grid grid-cols-1 gap-4 px-4 pb-2 md:grid-cols-3">
               <div className="rounded-xl bg-white p-4 ring-1 ring-black/5">
                 <div className="font-semibold">Address</div>
@@ -555,12 +1300,14 @@ export default function RestaurantPage() {
                     : ""}
                 </div>
               </div>
+
               <div className="rounded-xl bg-white p-4 ring-1 ring-black/5">
                 <div className="font-semibold">Contact</div>
                 <div className="text-sm text-gray-600">
                   {restaurant?.phone || "-"} • {restaurant?.email || "-"}
                 </div>
               </div>
+
               <div className="rounded-xl bg-white p-4 ring-1 ring-black/5">
                 <div className="font-semibold">Hours</div>
                 <div className="text-sm text-gray-600">
@@ -604,7 +1351,6 @@ export default function RestaurantPage() {
                     item.img && isHttpUrl(item.img)
                       ? item.img
                       : seededRestaurantImage(seed, 800, 400);
-
                   const toHref = productUrl(restForUrl, item.id);
 
                   return (
@@ -614,7 +1360,6 @@ export default function RestaurantPage() {
                       className="group overflow-hidden rounded-2xl bg-white shadow-lg ring-1 ring-black/5 focus:outline-none"
                       title={`${item.name} — details`}
                       onClick={(e) => {
-                        // When the card is clicked, open a modal instead of a route
                         e.preventDefault();
                         openItemModal(item);
                       }}
@@ -659,59 +1404,66 @@ export default function RestaurantPage() {
                 })}
             </div>
 
-            {/* Pagination */}
-            <div className="flex items-center justify-between gap-2 px-4 pb-4">
-              <div className="text-xs text-slate-600">
-                Page {page} / {totalPages}
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  disabled={page <= 1}
-                  className={`rounded-lg px-3 py-2 text-sm ring-1 ${
-                    page <= 1
-                      ? "cursor-not-allowed bg-white/60 text-slate-400 ring-slate-200"
-                      : "bg-white text-slate-800 ring-slate-200 hover:bg-slate-50"
-                  }`}
-                >
-                  ← Prev
-                </button>
-
-                <div className="hidden items-center gap-1 md:flex">
-                  {paginateRange(page, totalPages).map((n, i) =>
-                    n === "…" ? (
-                      <span key={`dots-${i}`} className="px-2 text-slate-500">
-                        …
-                      </span>
-                    ) : (
-                      <button
-                        key={n}
-                        onClick={() => setPage(n)}
-                        className={`rounded-md px-3 py-2 text-sm ring-1 ${
-                          n === page
-                            ? "bg-rose-600 text-white ring-rose-700"
-                            : "bg-white text-slate-800 ring-slate-200 hover:bg-slate-50"
-                        }`}
-                      >
-                        {n}
-                      </button>
-                    )
-                  )}
+            {/* Menu Pagination */}
+            {visibleCount > 0 && totalPages > 1 && (
+              <div className="flex items-center justify-between gap-2 px-4 pb-4">
+                <div className="text-xs text-slate-600">
+                  Showing {start + 1}–
+                  {Math.min(start + PAGE_SIZE, visibleCount)} of {visibleCount}
                 </div>
 
-                <button
-                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                  disabled={page >= totalPages}
-                  className={`rounded-lg px-3 py-2 text-sm ring-1 ${
-                    page >= totalPages
-                      ? "cursor-not-allowed bg-white/60 text-slate-400 ring-slate-200"
-                      : "bg-white text-slate-800 ring-slate-200 hover:bg-slate-50"
-                  }`}
-                >
-                  Next →
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    disabled={page <= 1}
+                    className={`rounded-lg px-3 py-2 text-sm ring-1 ${
+                      page <= 1
+                        ? "cursor-not-allowed bg-white/60 text-slate-400 ring-slate-200"
+                        : "bg-white text-slate-800 ring-slate-200 hover:bg-slate-50"
+                    }`}
+                    aria-label="Previous page"
+                  >
+                    ← Prev
+                  </button>
+
+                  <div className="hidden md:flex items-center gap-1">
+                    {getPageButtons(page, totalPages).map((n, i) =>
+                      n === "…" ? (
+                        <span key={`dots-${i}`} className="px-2 text-slate-500">
+                          …
+                        </span>
+                      ) : (
+                        <button
+                          key={n}
+                          onClick={() => setPage(n)}
+                          className={`rounded-md px-3 py-2 text-sm ring-1 ${
+                            n === page
+                              ? "bg-rose-600 text-white ring-rose-700"
+                              : "bg-white text-slate-800 ring-slate-200 hover:bg-slate-50"
+                          }`}
+                          aria-current={n === page ? "page" : undefined}
+                        >
+                          {n}
+                        </button>
+                      )
+                    )}
+                  </div>
+
+                  <button
+                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={page >= totalPages}
+                    className={`rounded-lg px-3 py-2 text-sm ring-1 ${
+                      page >= totalPages
+                        ? "cursor-not-allowed bg-white/60 text-slate-400 ring-slate-200"
+                        : "bg-white text-slate-800 ring-slate-200 hover:bg-slate-50"
+                    }`}
+                    aria-label="Next page"
+                  >
+                    Next →
+                  </button>
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Opening Hours */}
             {restaurant?.hours && (
@@ -740,30 +1492,162 @@ export default function RestaurantPage() {
               </div>
             )}
           </div>
+
+          {/* Reviews & Ratings (BOTTOM OF PAGE) */}
+          <RatingsSection restaurantId={rid} />
         </section>
 
-        {/* RIGHT: sticky cart */}
-        <aside className="sticky top-0 z-10 mt-6 h-[100dvh] w-full max-w-[360px] shrink-0 rounded-t-xl bg-[#12151a] px-5 pt-6 text-white lg:mt-0">
+        {/* RIGHT: sticky cart (grouped by restaurant name) */}
+        <aside className="sticky top-4 h-[100dvh] w-full max-w-[360px] shrink-0 bg-[#12151a] px-5 pt-6 text-white">
           <div className="rounded-xl bg-[#1b2027] p-4 ring-1 ring-white/5">
-            <div className="mb-3 flex items-center gap-2">
-              <span className="inline-flex h-6 w-6 items-center justify-center rounded-md bg-rose-500/20 text-rose-300">
-                🛒
-              </span>
-              <span className="font-semibold uppercase tracking-wider">
-                Cart
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <div className="inline-flex items-center gap-2">
+                <span className="inline-flex h-6 w-6 items-center justify-center rounded-md text-white text-2xl ml-1 ">
+                  🛒
+                </span>
+                <span className="font-semibold uppercase tracking-wider ml-2">
+                  Cart
+                </span>
+              </div>
+              <span className="text-xs text-gray-300">
+                {cartItems.length} item{cartItems.length !== 1 ? "s" : ""}
               </span>
             </div>
 
-            <div className="rounded-md bg-[#0f1318] p-3 text-sm text-gray-300">
-              {subtotal === 0
-                ? "Your Cart is Currently Empty"
-                : "Items added (demo)"}
-            </div>
+            {/* Items list (grouped) */}
+            {cartItems.length === 0 ? (
+              <div className="rounded-md bg-[#0f1318] p-3 text-sm text-gray-300">
+                Your cart is currently empty
+              </div>
+            ) : (
+              <div className="max-h-64 overflow-auto space-y-3">
+                {[...groupedByRestaurant.entries()].map(
+                  ([restName, items], gi) => (
+                    <div key={`${restName}-${gi}`} className="space-y-2">
+                      {/* Group header */}
+                      <div className="flex items-center justify-between px-1">
+                        <div className="text-sm font-semibold text-white/90">
+                          {restName}
+                        </div>
+                        <div className="text-xs text-white/60">
+                          {items.length} item{items.length !== 1 ? "s" : ""}
+                        </div>
+                      </div>
 
+                      {/* Group items */}
+                      {items.map((it, idxGlobal) => {
+                        // We need the absolute index in cartItems for changeQty/remove
+                        const absoluteIndex = cartItems.indexOf(it);
+                        const extras = lineExtrasSum(it.selectedAddOnsDetailed);
+                        const lt = lineTotal(it);
+                        return (
+                          <div
+                            key={`${restName}-${absoluteIndex}`}
+                            className="flex gap-3 rounded-lg bg-[#0f1318] p-3 ring-1 ring-white/5"
+                          >
+                            <img
+                              src={it.img}
+                              alt={it.name}
+                              className="h-14 w-14 rounded-md object-cover"
+                              onError={(e) => {
+                                e.currentTarget.onerror = null;
+                                e.currentTarget.src = seededRestaurantImage(
+                                  `${String(
+                                    it.restaurantId || it.id || it.name
+                                  )}-alt`,
+                                  100,
+                                  100
+                                );
+                              }}
+                            />
+                            <div className="flex-1">
+                              <div className="flex items-start justify-between gap-2">
+                                <div>
+                                  <div className="text-sm font-semibold">
+                                    {it.name}
+                                  </div>
+                                  <div className="text-[11px] text-gray-400">
+                                    {it.selectedSize
+                                      ? `Size: ${it.selectedSize}`
+                                      : "—"}
+                                  </div>
+                                  {Array.isArray(it.selectedAddOnsDetailed) &&
+                                    it.selectedAddOnsDetailed.length > 0 && (
+                                      <div className="text-[11px] text-gray-400">
+                                        {it.selectedAddOnsDetailed
+                                          .map((a) => a.name)
+                                          .join(", ")}
+                                      </div>
+                                    )}
+                                  {/* Restaurant name under the item (explicit) */}
+                                  <div className="text-[11px] text-gray-400 italic mt-0.5">
+                                    {it.restaurantName ||
+                                      it.restaurantTitle ||
+                                      "Restaurant"}
+                                  </div>
+                                </div>
+                                <button
+                                  className="text-[11px] text-rose-400 hover:text-rose-300"
+                                  onClick={() => removeItem(absoluteIndex)}
+                                >
+                                  Remove
+                                </button>
+                              </div>
+
+                              <div className="mt-2 flex items-center justify-between">
+                                <div className="inline-flex items-center rounded-md bg-black/40">
+                                  <button
+                                    className="h-7 w-7"
+                                    onClick={() => changeQty(absoluteIndex, -1)}
+                                    aria-label="Decrease"
+                                  >
+                                    –
+                                  </button>
+                                  <div className="w-8 text-center text-sm">
+                                    {it.qty}
+                                  </div>
+                                  <button
+                                    className="h-7 w-7"
+                                    onClick={() => changeQty(absoluteIndex, +1)}
+                                    aria-label="Increase"
+                                  >
+                                    +
+                                  </button>
+                                </div>
+                                <div className="text-sm font-semibold">
+                                  € {lt.toFixed(2)}
+                                </div>
+                              </div>
+                              <div className="mt-1 text-[11px] text-gray-400">
+                                Unit €{Number(it.unitPrice).toFixed(2)}
+                                {extras > 0
+                                  ? ` + extras €${extras.toFixed(2)}`
+                                  : ""}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )
+                )}
+              </div>
+            )}
+
+            {/* Totals */}
             <div className="mt-4 space-y-2 text-sm text-gray-300">
-              <Row k="Subtotal" v={`€ ${subtotal.toFixed(2)}`} />
-              <Row k="Delivery Charge" v={`€ ${delivery.toFixed(2)}`} />
-              <Row k="VAT 5%" v={`€ ${vat.toFixed(2)}`} />
+              <div className="flex items-center justify-between">
+                <span>Subtotal</span>
+                <span className="font-medium">€ {subtotal.toFixed(2)}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span>Delivery Charge</span>
+                <span className="font-medium">€ {delivery.toFixed(2)}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span>VAT 7%</span>
+                <span className="font-medium">€ {vat.toFixed(2)}</span>
+              </div>
               <div className="mt-2 border-t border-white/10 pt-3 text-base font-semibold text-white">
                 <div className="flex items-center justify-between">
                   <span>TOTAL</span>
@@ -773,7 +1657,8 @@ export default function RestaurantPage() {
             </div>
 
             <button
-              className="mt-4 w-full rounded-lg bg-rose-600 py-3 font-semibold tracking-wide hover:bg-rose-700"
+              className="mt-4 w-full rounded-lg bg-rose-600 py-3 font-semibold tracking-wide hover:bg-rose-700 disabled:opacity-60"
+              disabled={cartItems.length === 0}
               onClick={() => router.push("/checkout")}
             >
               CHECKOUT
@@ -782,7 +1667,7 @@ export default function RestaurantPage() {
         </aside>
       </div>
 
-      {/* MODAL ----------------------------------------------------------------------------------------------------- */}
+      {/* MODAL ================================================================= */}
       {modalOpen && selectedItem && (
         <div
           className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50"
@@ -829,18 +1714,6 @@ export default function RestaurantPage() {
                     </p>
                   ) : null}
                 </div>
-                {selectedItem.restaurantId && (
-                  <Link
-                    href={productUrl(
-                      selectedItem.restaurantId,
-                      selectedItem.id
-                    )}
-                    className="text-xs text-rose-600 underline underline-offset-2 hover:text-rose-700"
-                    onClick={() => setModalOpen(false)}
-                  >
-                    View details →
-                  </Link>
-                )}
               </div>
 
               {/* Sizes */}
@@ -963,7 +1836,7 @@ export default function RestaurantPage() {
                 </div>
               </div>
 
-              {/* CTA */}
+              {/* Actions */}
               <div className="mt-5 flex items-center justify-end gap-2">
                 <button
                   className="rounded-lg px-4 py-2 text-sm ring-1 ring-slate-200 hover:bg-slate-50"
@@ -986,7 +1859,9 @@ export default function RestaurantPage() {
   );
 }
 
-/** Helpers (bottom) */
+/* =============================================================================
+   Small UI helpers
+============================================================================= */
 function Row({ k, v }) {
   return (
     <div className="flex items-center justify-between">
@@ -994,28 +1869,4 @@ function Row({ k, v }) {
       <span className="font-medium">{v}</span>
     </div>
   );
-}
-
-function paginateRange(current, total) {
-  const delta = 1;
-  const range = [];
-  const out = [];
-  let l;
-  for (let i = 1; i <= total; i++) {
-    if (
-      i === 1 ||
-      i === total ||
-      (i >= current - delta && i <= current + delta)
-    )
-      range.push(i);
-  }
-  for (const i of range) {
-    if (l) {
-      if (i - l === 2) out.push(l + 1);
-      else if (i - l !== 1) out.push("…");
-    }
-    out.push(i);
-    l = i;
-  }
-  return out;
 }

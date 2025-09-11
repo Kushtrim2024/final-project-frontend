@@ -65,7 +65,7 @@ export default function RestaurantManagement() {
   };
 
   const handleEditAddressChange = (e) => {
-    const { name, value } = e.target; // name: street | city | postalCode | country
+    const { name, value } = e.target;
     setEditingRestaurant((prev) => ({
       ...prev,
       address: { ...ensureAddressObject(prev?.address), [name]: value },
@@ -148,13 +148,13 @@ export default function RestaurantManagement() {
       const list = pickFirstArray(data);
       setRestaurants(list.map(mapFromApi));
     } catch (e) {
-      setErr(e.message || "Liste alınamadı");
+      setErr(e.message || "List fetch failed");
     } finally {
       setLoading(false);
     }
   };
 
-  // token oku
+  // token reader
   useEffect(() => {
     const t = readTokenFromStorage();
     if (t) setToken(t);
@@ -189,30 +189,34 @@ export default function RestaurantManagement() {
 
   // PAGINATION buttons: 1 … prev current next … last
   const getPageButtons = (current, total) => {
-    if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
-    const pages = new Set([
-      1,
-      total,
-      current,
-      current - 1,
-      current + 1,
-      current - 2,
-      current + 2,
-    ]);
-    const arr = [...pages]
-      .filter((n) => n >= 1 && n <= total)
-      .sort((a, b) => a - b);
-    const withDots = [];
-    for (let i = 0; i < arr.length; i++) {
-      withDots.push(arr[i]);
-      if (i < arr.length - 1 && arr[i + 1] - arr[i] > 1) withDots.push("…");
+    if (total <= 1) return [1];
+
+    current = Math.max(1, Math.min(current, total));
+
+    const pages = [1];
+
+    if (current > 2) {
+      pages.push("…");
     }
-    return withDots;
+
+    if (current !== 1 && current !== total) {
+      pages.push(current);
+    }
+
+    if (current < total - 1) {
+      pages.push("…");
+    }
+
+    if (total !== 1) {
+      pages.push(total);
+    }
+
+    return pages;
   };
 
   // --- ACTIONS (optimistic + rollback)
   const approveRestaurant = async (id) => {
-    if (!token) return alert("Token yok");
+    if (!token) return alert("Token not found");
     const prevSnapshot = restaurants;
     setRestaurants((prev) =>
       prev.map((r) => (r.id === id ? { ...r, status: "active" } : r))
@@ -241,7 +245,7 @@ export default function RestaurantManagement() {
   };
 
   const setInactive = async (id) => {
-    if (!token) return alert("Token yok");
+    if (!token) return alert("Token not found");
     const prevSnapshot = restaurants;
     setRestaurants((prev) =>
       prev.map((r) => (r.id === id ? { ...r, status: "inactive" } : r))
@@ -283,7 +287,7 @@ export default function RestaurantManagement() {
   };
 
   const handleEditSave = async () => {
-    if (!token) return alert("Token yok");
+    if (!token) return alert("Token not found");
     try {
       const id = editingRestaurant.id;
 
@@ -339,7 +343,7 @@ export default function RestaurantManagement() {
         restaurantName: editingRestaurant.restaurantName,
         name: editingRestaurant.name,
         description: editingRestaurant.description || "",
-        address: addr, // <-- STRING not, OBJE
+        address: addr,
         phone: editingRestaurant.phone,
         email: editingRestaurant.email,
         website: editingRestaurant.website,
@@ -374,8 +378,8 @@ export default function RestaurantManagement() {
   };
 
   const handleDelete = async (id) => {
-    if (!token) return alert("Token yok");
-    if (!confirm("Bu restoranı silmek istiyor musun?")) return;
+    if (!token) return alert("Token not found");
+    if (!confirm("Do you want to delete this restaurant?")) return;
     const prevSnapshot = restaurants;
     setRestaurants((prev) => prev.filter((r) => r.id !== id));
     try {
@@ -462,7 +466,7 @@ export default function RestaurantManagement() {
               setPendingPage(1);
             }}
             placeholder="Search awaiting approval…"
-            className="w-full md:w-96 border rounded px-3 py-2 text-gray-600"
+            className="w-full md:w-96 border rounded px-3 py-1 text-gray-600"
             type="text"
           />
         </div>
@@ -488,7 +492,7 @@ export default function RestaurantManagement() {
       </div>
 
       <div className="relative rounded bg-white shadow max-[1320px]:text-[12px] ">
-        <div className="max-h-96 overflow-auto">
+        <div className="max-h-[47rem] overflow-auto">
           <table className="min-w-[1000px] w-full table-fixed border-collapse">
             <thead className="bg-gray-800 sticky top-0 text-gray-100">
               <tr>
@@ -624,7 +628,7 @@ export default function RestaurantManagement() {
                 n === "…" ? (
                   <span
                     key={`pend-ellipsis-${idx}`}
-                    className="px-2 select-none"
+                    className="px-2 select-none max-[700px]:hidden"
                   >
                     …
                   </span>
@@ -675,7 +679,7 @@ export default function RestaurantManagement() {
               setActivePage(1);
             }}
             placeholder="Search active restaurants…"
-            className="w-full md:w-96 border rounded px-3 py-2 text-gray-600"
+            className="w-full md:w-96 border rounded px-3 py-1 text-gray-600"
             type="text"
           />
           <div>
@@ -700,8 +704,8 @@ export default function RestaurantManagement() {
         </div>
 
         <div className="relative rounded bg-white shadow max-[1250px]:text-[12px] border">
-          <div className="max-h-96 overflow-auto">
-            <table className="min-w-[1000px] w-full table-fixed border-collapse">
+          <div className="max-h-[47rem] overflow-auto">
+            <table className="min-w-[1000px] w-full table-fixed border-collapse ">
               <thead className="bg-gray-800 sticky top-0 text-gray-100">
                 <tr>
                   <th className="px-4 py-4 border border-black">Restaurant</th>
@@ -851,7 +855,7 @@ export default function RestaurantManagement() {
                   n === "…" ? (
                     <span
                       key={`appr-ellipsis-${idx}`}
-                      className="px-2 select-none"
+                      className="px-2 select-none max-[700px]:hidden"
                     >
                       …
                     </span>

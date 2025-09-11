@@ -5,7 +5,7 @@ import Link from "next/link";
 import { getAuth } from "@/lib/auth";
 import { getCart } from "@/lib/cartApi";
 
-const DELIVERY = 8.57;
+const DELIVERY = 5.99;
 const VAT_RATE = 0.05;
 
 export default function CartSidebar() {

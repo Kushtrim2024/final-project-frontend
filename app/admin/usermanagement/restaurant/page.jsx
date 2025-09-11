@@ -178,14 +178,34 @@ export default function RestaurantOwnersPage() {
     }
   }
 
+  const getPageButtons = (current, total) => {
+    if (total <= 1) return [1];
+
+    current = Math.max(1, Math.min(current, total));
+
+    if (total === 2) return [1, 2];
+    if (total === 3) return Array.from(new Set([1, current, total]));
+
+    if (current === 1 || current === total) {
+      return [1, "…", total];
+    }
+
+    const out = [1];
+    if (current > 2) out.push("…");
+    out.push(current);
+    if (current < total - 1) out.push("…");
+    out.push(total);
+    return out;
+  };
+
   return (
     <div className="p-6 text-gray-800">
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-2xl font-bold">
+        <h2 className="text-2xl font-bold max-[700px]:text-[16px]">
           Admin - User Management (Restaurants)
         </h2>
         <button
-          className="px-3 py-2 rounded bg-green-600 text-white hover:bg-green-700"
+          className="px-3 py-2 rounded bg-green-600 text-white hover:bg-green-700 max-[700px]:text-[12px] max-[700px]:px-1"
           onClick={() => setAddingOpen(true)}
         >
           + Add Owner
@@ -195,7 +215,7 @@ export default function RestaurantOwnersPage() {
       <div className="flex flex-col md:flex-row md:items-center justify-between mb-4 gap-2">
         <input
           placeholder="Search name/email/restaurant…"
-          className="border rounded px-3 py-2 w-full md:w-1/3"
+          className="border rounded px-3 py-1 w-full md:w-1/3"
           value={q}
           onChange={(e) => {
             setQ(e.target.value);
@@ -205,7 +225,7 @@ export default function RestaurantOwnersPage() {
         <div className="flex items-center gap-2">
           <label className="text-sm">Rows:</label>
           <select
-            className="border rounded px-2 py-1"
+            className="border rounded px-2 py-1 max-[700px]:text-[14px] max-[700px]:py-[4px]"
             value={pageSize}
             onChange={(e) => {
               setPageSize(Number(e.target.value));
@@ -218,6 +238,9 @@ export default function RestaurantOwnersPage() {
               </option>
             ))}
           </select>
+        </div>
+        <div className="text-sm text-gray-800">
+          Page <b>{page}</b> / {totalPages} • <b>{filtered.length}</b> items
         </div>
       </div>
 
@@ -272,11 +295,8 @@ export default function RestaurantOwnersPage() {
         </table>
       </div>
 
-      {/* Pagination */}
+      {/* Pagination: Prev | dynamic buttons | Next */}
       <div className="flex items-center justify-between gap-3 p-3 border-t bg-white mt-4">
-        <div className="text-sm text-gray-800">
-          Page <b>{page}</b> / {totalPages} • <b>{filtered.length}</b> items
-        </div>
         <div className="flex items-center gap-2">
           <button
             className="px-2 py-1 border rounded disabled:opacity-50"
@@ -286,29 +306,30 @@ export default function RestaurantOwnersPage() {
             Prev
           </button>
 
-          <button
-            className={`px-3 py-1 border rounded ${
-              page === 1 ? "bg-gray-800 text-white" : "hover:bg-gray-100"
-            }`}
-            onClick={() => setPage(1)}
-          >
-            1
-          </button>
-
-          {totalPages > 2 && <span className="px-2 select-none">…</span>}
-
-          {totalPages > 1 && (
-            <button
-              className={`px-3 py-1 border rounded ${
-                page === totalPages
-                  ? "bg-gray-800 text-white"
-                  : "hover:bg-gray-100"
-              }`}
-              onClick={() => setPage(totalPages)}
-            >
-              {totalPages}
-            </button>
-          )}
+          <div className="flex items-center gap-1">
+            {getPageButtons(page, totalPages).map((n, idx) =>
+              n === "…" ? (
+                <span
+                  key={`ellipsis-${idx}`}
+                  className="px-2 select-none max-[700px]:hidden"
+                >
+                  …
+                </span>
+              ) : (
+                <button
+                  key={`pg-${n}`}
+                  type="button"
+                  aria-current={page === n ? "page" : undefined}
+                  className={`px-3 py-1 border rounded ${
+                    page === n ? "bg-gray-800 text-white" : "hover:bg-gray-100"
+                  }`}
+                  onClick={() => setPage(n)}
+                >
+                  {n}
+                </button>
+              )
+            )}
+          </div>
 
           <button
             className="px-2 py-1 border rounded disabled:opacity-50"
@@ -320,7 +341,6 @@ export default function RestaurantOwnersPage() {
         </div>
       </div>
 
-      {/* Add Modal */}
       {addingOpen && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
           <form

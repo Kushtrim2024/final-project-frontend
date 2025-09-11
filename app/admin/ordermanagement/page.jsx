@@ -5,6 +5,8 @@ import CSVExportButton from "../componentsadmin/CSVExportButton.jsx";
 
 const BASE = process.env.NEXT_PUBLIC_API_BASE_ORDERS || "http://localhost:5517";
 
+/* ================= Helpers ================= */
+
 // Read token with possible keys in localStorage
 const readTokenFromStorage = () => {
   if (typeof window === "undefined") return "";
@@ -52,6 +54,7 @@ const safeText = (v) => {
   return String(v);
 };
 
+// Şemanda address String; ama olası object dönüşlerini de nazikçe işleyelim
 const formatAddress = (a) =>
   typeof a === "string"
     ? a
@@ -67,21 +70,55 @@ const formatDate = (iso) => {
   }
 };
 
-/** Backend -> UI status mapping */
+/** Backend -> UI status mapping (Order schema ile uyumlu) */
 const apiToUiStatus = (s) => {
   const x = String(s || "").toLowerCase();
-  if (x === "delivered") return "Delivered";
-  if (x === "cancelled" || x === "canceled") return "Cancelled";
-  if (x === "preparing" || x === "ready") return "Getting Ready";
-  return "Getting Ready";
+  switch (x) {
+    case "pending":
+      return "Pending";
+    case "confirmed":
+      return "Confirmed";
+    case "preparing":
+      return "Preparing";
+    case "ready":
+      return "Ready for Pickup";
+    case "out_for_delivery":
+      return "Out for Delivery";
+    case "delivered":
+      return "Delivered";
+    case "cancelled":
+    case "canceled":
+      return "Cancelled";
+    default:
+      return "Pending";
+  }
 };
 
-/** UI -> Backend status mapping */
+/** UI -> Backend status mapping (Order schema ile uyumlu) */
 const uiToApiStatus = (s) => {
   const x = String(s || "").toLowerCase();
+  if (x.includes("pending")) return "pending";
+  if (x.includes("confirm")) return "confirmed";
+  if (x.includes("prepar")) return "preparing";
+  if (x.includes("ready")) return "ready";
+  if (x.includes("out for delivery") || x.includes("out_for_delivery"))
+    return "out_for_delivery";
   if (x.includes("deliver")) return "delivered";
   if (x.includes("cancel")) return "cancelled";
-  return "ready"; // "Getting Ready"
+  return "pending"; // güvenli default
+};
+
+// Rozet renkleri
+const getStatusBadge = (status) => {
+  const s = String(status || "").toLowerCase();
+  if (s.includes("pending")) return "bg-gray-100 text-gray-700";
+  if (s.includes("confirm")) return "bg-blue-100 text-blue-700";
+  if (s.includes("prepar")) return "bg-yellow-100 text-yellow-700";
+  if (s.includes("ready")) return "bg-indigo-100 text-indigo-700";
+  if (s.includes("out for delivery")) return "bg-purple-100 text-purple-700";
+  if (s.includes("deliver")) return "bg-green-100 text-green-700";
+  if (s.includes("cancel")) return "bg-red-100 text-red-700";
+  return "bg-gray-100 text-gray-700";
 };
 
 /* ================= Page ================= */
@@ -136,9 +173,12 @@ export default function OrderManagementPage() {
             o?.restaurantName ?? restaurantObj ?? o?.restaurantId
           ),
           date: formatDate(
-            o?.createdAt || o?.updatedAt || new Date().toISOString()
+            o?.createdAt ||
+              o?.orderTime ||
+              o?.updatedAt ||
+              new Date().toISOString()
           ),
-          status: apiToUiStatus(o?.status || o?.orderStatus || "ready"),
+          status: apiToUiStatus(o?.status || o?.orderStatus || "pending"),
         };
       });
       setOrders(mapped);
@@ -156,13 +196,17 @@ export default function OrderManagementPage() {
     setTokenChecked(true);
     const onStorage = () => setToken(readTokenFromStorage());
     const onFocus = onStorage;
-    window.addEventListener("storage", onStorage);
-    window.addEventListener("focus", onFocus);
-    document.addEventListener("visibilitychange", onFocus);
+    if (typeof window !== "undefined") {
+      window.addEventListener("storage", onStorage);
+      window.addEventListener("focus", onFocus);
+      document.addEventListener("visibilitychange", onFocus);
+    }
     return () => {
-      window.removeEventListener("storage", onStorage);
-      window.removeEventListener("focus", onFocus);
-      document.removeEventListener("visibilitychange", onFocus);
+      if (typeof window !== "undefined") {
+        window.removeEventListener("storage", onStorage);
+        window.removeEventListener("focus", onFocus);
+        document.removeEventListener("visibilitychange", onFocus);
+      }
     };
   }, []);
 
@@ -194,7 +238,8 @@ export default function OrderManagementPage() {
   // --- Modal helpers ---
   const openUpdateModal = (order) => {
     setSelectedOrder(order);
-    setNewStatus(order.status || "Getting Ready");
+    // order.status UI metni; yine de güvenli olsun:
+    setNewStatus(apiToUiStatus(order.status) || "Pending");
     setModalType("update");
   };
 
@@ -267,14 +312,6 @@ export default function OrderManagementPage() {
     }
   };
 
-  // UI helpers
-  const getStatusBadge = (status) => {
-    const s = String(status || "");
-    if (/delivered/i.test(s)) return "bg-green-100 text-green-700";
-    if (/cancel/i.test(s)) return "bg-red-100 text-red-700";
-    return "bg-yellow-100 text-yellow-700"; // Getting Ready / others
-  };
-
   if (!tokenChecked) return <div className="p-4">Checking…</div>;
   if (loading) return <div className="p-4">Loading…</div>;
   if (err) return <div className="p-4 text-red-600">{err}</div>;
@@ -289,12 +326,36 @@ export default function OrderManagementPage() {
   ];
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen ">
       <h1 className="text-3xl font-bold text-gray-900 mb-6 max-[1200px]:text-[16px]">
         Order Management
       </h1>
 
-      {/* TABLO */}
+      <label className="text-sm text-gray-800 max-[750px]:hidden mr-2">
+        Rows :
+      </label>
+      <select
+        className="border rounded px-2 py-1 mb-4"
+        value={pageSize}
+        onChange={(e) => {
+          setPageSize(Number(e.target.value));
+          setPage(1);
+        }}
+      >
+        {[6, 12, 24, 48].map((n) => (
+          <option key={n} value={n}>
+            {n}
+          </option>
+        ))}
+      </select>
+
+      <div className="text-sm text-gray-800 mb-4">
+        Page <span className="font-semibold">{page}</span>&nbsp;/&nbsp;
+        {totalPages}&nbsp;•&nbsp;
+        <span className="font-semibold">{totalItems}</span>&nbsp;items
+      </div>
+
+      {/* TABLE */}
       <div className="overflow-x-auto shadow-md rounded-lg border border-gray-200 bg-white">
         <table className="min-w-full text-sm text-left text-gray-900">
           <thead className="bg-gray-100 text-base font-semibold max-[1200px]:text-[14px]">
@@ -356,7 +417,7 @@ export default function OrderManagementPage() {
         </table>
       </div>
 
-      {/* PAGING CONTROLS */}
+      {/* PAGINATION */}
       <PaginationControls
         page={page}
         setPage={setPage}
@@ -384,7 +445,11 @@ export default function OrderManagementPage() {
                     onChange={(e) => setNewStatus(e.target.value)}
                     className="mt-1 block w-full border border-gray-300 rounded px-3 py-2"
                   >
-                    <option>Getting Ready</option>
+                    <option>Pending</option>
+                    <option>Confirmed</option>
+                    <option>Preparing</option>
+                    <option>Ready for Pickup</option>
+                    <option>Out for Delivery</option>
                     <option>Delivered</option>
                     <option>Cancelled</option>
                   </select>
@@ -443,13 +508,17 @@ export default function OrderManagementPage() {
                     <p>
                       <strong>Date:</strong>{" "}
                       {safeText(
-                        formatDate(details.createdAt || selectedOrder.date)
+                        formatDate(
+                          details.createdAt ||
+                            details.orderTime ||
+                            selectedOrder.date
+                        )
                       )}
                     </p>
                     <p>
                       <strong>Status:</strong>{" "}
                       {safeText(
-                        apiToUiStatus(details.status) || selectedOrder.status
+                        apiToUiStatus(details.status || selectedOrder.status)
                       )}
                     </p>
 
@@ -465,19 +534,43 @@ export default function OrderManagementPage() {
                       </p>
                     )}
 
-                    {Array.isArray(details.cart) && details.cart.length > 0 && (
-                      <div className="pt-2">
-                        <strong>Items:</strong>
-                        <ul className="list-disc ml-5">
-                          {details.cart.map((it, idx) => (
-                            <li key={idx}>
-                              {safeText(it?.menuItem?.name || it?.menuItemId)} ×{" "}
-                              {safeText(it?.quantity)}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
+                    {/* items (schema) */}
+                    {Array.isArray(details.items) &&
+                      details.items.length > 0 && (
+                        <div className="pt-2">
+                          <strong>Items:</strong>
+                          <ul className="list-disc ml-5">
+                            {details.items.map((it, idx) => (
+                              <li key={idx}>
+                                {safeText(it?.name || it?.productId)} ×{" "}
+                                {safeText(it?.quantity)}{" "}
+                                {it?.total != null
+                                  ? `— ${safeText(it.total)}`
+                                  : it?.price != null
+                                  ? `— ${safeText(it.price)}`
+                                  : ""}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
+                    {/* eski cart desteği (geriye dönük uyumluluk) */}
+                    {!details.items &&
+                      Array.isArray(details.cart) &&
+                      details.cart.length > 0 && (
+                        <div className="pt-2">
+                          <strong>Items:</strong>
+                          <ul className="list-disc ml-5">
+                            {details.cart.map((it, idx) => (
+                              <li key={idx}>
+                                {safeText(it?.menuItem?.name || it?.menuItemId)}
+                                × {safeText(it?.quantity)}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
                   </div>
                 )}
                 <div className="mt-4 flex justify-end">
@@ -489,13 +582,13 @@ export default function OrderManagementPage() {
                     Close
                   </button>
                 </div>
+
+                {/* CSV Export Button  */}
+                <div className="mt-6">
+                  <CSVExportButton data={orders} headers={csvHeaders} />
+                </div>
               </>
             )}
-
-            {/* CSV Export Button  */}
-            <div className="mt-6">
-              <CSVExportButton data={orders} headers={csvHeaders} />
-            </div>
           </div>
         </div>
       )}
@@ -517,33 +610,31 @@ function PaginationControls({
   totalItems,
 }) {
   const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+
+  // Standart: 1 … current … total
+  const getPageButtons = (current, total) => {
+    if (total <= 1) return [1];
+
+    current = Math.max(1, Math.min(current, total));
+
+    if (total === 2) return [1, 2];
+    if (total === 3) return Array.from(new Set([1, current, total]));
+
+    if (current === 1 || current === total) {
+      return [1, "…", total];
+    }
+
+    const out = [1];
+    if (current > 2) out.push("…");
+    out.push(current);
+    if (current < total - 1) out.push("…");
+    out.push(total);
+    return out;
+  };
+
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 p-3 border-t bg-white mt-4 rounded-lg">
-      <div className="text-sm text-gray-800">
-        Page <span className="font-semibold">{page}</span>&nbsp;/&nbsp;
-        {totalPages}&nbsp;•&nbsp;
-        <span className="font-semibold">{totalItems}</span>&nbsp;items
-      </div>
-
+    <div className="flex flex-wrap items-center justify-between gap-3 p-3  bg-white mt-4 rounded-lg">
       <div className="flex items-center gap-2 text-gray-800">
-        <label className="text-sm text-gray-800 max-[750px]:hidden">
-          Rows:
-        </label>
-        <select
-          className="border rounded px-2 py-1"
-          value={pageSize}
-          onChange={(e) => {
-            setPageSize(Number(e.target.value));
-            setPage(1);
-          }}
-        >
-          {[6, 12, 24, 48].map((n) => (
-            <option key={n} value={n}>
-              {n}
-            </option>
-          ))}
-        </select>
-
         <button
           type="button"
           className="px-2 py-1 border rounded disabled:opacity-50"
@@ -554,23 +645,24 @@ function PaginationControls({
         </button>
 
         <div className="flex items-center gap-1">
-          {Array.from({ length: totalPages }, (_, i) => i + 1).map((n) => (
-            <button
-              key={n}
-              type="button"
-              aria-current={page === n ? "page" : undefined}
-              className={`px-3 py-1 border rounded ${
-                page === n ? "bg-gray-800 text-white" : "hover:bg-gray-100"
-              } ${n !== 1 ? "max-[1150px]:hidden" : ""}`}
-              onClick={() => setPage(n)}
-            >
-              {n}
-            </button>
-          ))}
-          {totalPages > 1 && (
-            <span className="hidden max-[1150px]:inline-block px-2 select-none">
-              …
-            </span>
+          {getPageButtons(page, totalPages).map((n, idx) =>
+            n === "…" ? (
+              <span key={`ellipsis-${idx}`} className="px-2 select-none">
+                …
+              </span>
+            ) : (
+              <button
+                key={`pg-${n}`}
+                type="button"
+                aria-current={page === n ? "page" : undefined}
+                className={`px-3 py-1 border rounded ${
+                  page === n ? "bg-gray-800 text-white" : "hover:bg-gray-100"
+                }`}
+                onClick={() => setPage(n)}
+              >
+                {n}
+              </button>
+            )
           )}
         </div>
 
