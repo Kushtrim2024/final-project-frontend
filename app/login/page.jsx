@@ -1,10 +1,9 @@
 "use client";
-
 import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
-export default function LoginPage() {
+function LoginPage() {
   const router = useRouter();
 
   // Login state
@@ -15,17 +14,35 @@ export default function LoginPage() {
 
   // Register modal state
   const [showRegisterModal, setShowRegisterModal] = useState(false);
+  // extra states nur für Register
+  const [showRegPassword, setShowRegPassword] = useState(false);
+  const [showRegPasswordConfirm, setShowRegPasswordConfirm] = useState(false);
   const [reg, setReg] = useState({
     name: "",
     email: "",
     password: "",
     passwordConfirm: "",
     phone: "",
-    address: { street: "", city: "", postalCode: "", country: "" },
+    address: {
+      street: "",
+      city: "",
+      postalCode: "",
+      country: "",
+    },
   });
   const [registerError, setRegisterError] = useState(null);
   const [registerSuccess, setRegisterSuccess] = useState(null);
   const [registerLoading, setRegisterLoading] = useState(false);
+
+  // Password visibility
+  const [showPassword, setShowPassword] = useState(false);
+  const [showPasswordConfirm, setShowPasswordConfirm] = useState(false);
+
+  // ✅ Email Validation Function
+  const validateEmail = (email) => {
+    const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return re.test(String(email).toLowerCase());
+  };
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -38,30 +55,13 @@ export default function LoginPage() {
         body: JSON.stringify({ email, password }),
       });
       const data = await res.json();
+
       if (!res.ok) {
         setLoginError(data.message || "Login failed");
         return;
       }
-      const token = data?.token || data?.accessToken || null;
-      const user = data?.user || data?.data || {};
-      if (token) {
-        localStorage.setItem("token", token);
-        localStorage.setItem("role", "user");
-        localStorage.setItem(
-          "auth",
-          JSON.stringify({
-            token,
-            user: {
-              id: user?.id || user?._id || user?.userId || null,
-              role: "user",
-              name:
-                user?.name || user?.fullName || user?.username || email || null,
-              email: user?.email || email || null,
-            },
-          })
-        );
-      }
-      router.push("/");
+      localStorage.setItem("token", data.token);
+      router.push("/usermanagement");
     } catch (err) {
       setLoginError("Server error. Please try again.");
     } finally {
@@ -74,8 +74,25 @@ export default function LoginPage() {
     setRegisterError(null);
     setRegisterSuccess(null);
 
+    // 1. Email validation
+    if (!validateEmail(reg.email)) {
+      setRegisterError("Please enter a valid email address.");
+      return;
+    }
+
+    // 2. Check passwords match
     if (reg.password !== reg.passwordConfirm) {
       setRegisterError("Passwords do not match.");
+      return;
+    }
+
+    // 3. Strong password validation
+    const passwordRegex =
+      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*]).{8,}$/;
+    if (!passwordRegex.test(reg.password)) {
+      setRegisterError(
+        "Password must be at least 8 characters, include uppercase, lowercase, number, and special character."
+      );
       return;
     }
 
@@ -93,6 +110,7 @@ export default function LoginPage() {
         return;
       }
 
+      // Successful registration: close modal, fill login form
       setRegisterSuccess("Registration successful! You can log in.");
       setEmail(reg.email);
       setPassword(reg.password);
@@ -108,7 +126,7 @@ export default function LoginPage() {
   };
 
   const inputClass =
-    " pl-2 w-4/5  max-[400px]:w-3/4  h-8 rounded-md bg-white text-sm text-gray-800 shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition duration-200";
+    "pl-2 w-4/5 max-[400px]:w-3/4 h-8 rounded-md bg-white text-sm text-gray-800 shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition duration-200";
   const labelClass =
     "mt-2 text-sm font-medium text-gray-700 mb-2 flex items-center w-1/5 max-[500px]:w-2/5";
 
@@ -142,7 +160,7 @@ export default function LoginPage() {
               required
             />
           </div>
-          <div className="flex flex-row items-center">
+          <div className="flex flex-row items-center relative">
             <label
               htmlFor="login-password"
               className="block text-sm font-medium text-gray-700 w-1/5 max-[400px]:w-1/4 max-[400px]:text-[14px]"
@@ -151,13 +169,20 @@ export default function LoginPage() {
             </label>
             <input
               id="login-password"
-              type="password"
+              type={showPassword ? "text" : "password"}
               placeholder="••••••••"
               className={inputClass}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
             />
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute right-2 top-2 text-sm text-gray-600"
+            >
+              {showPassword ? "Hide" : "Show"}
+            </button>
           </div>
 
           {loginError && <p className="text-red-600 text-sm">{loginError}</p>}
@@ -184,7 +209,7 @@ export default function LoginPage() {
       {/* Register Modal */}
       {showRegisterModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900 bg-opacity-10">
-          <div className="bg-white rounded-lg shadow-xl p-6 w-lg relative m-4 max-w-xl ">
+          <div className="bg-white rounded-lg shadow-xl p-6 w-lg relative m-4 max-w-xl">
             <button
               onClick={() => setShowRegisterModal(false)}
               className="absolute top-2 right-2 text-gray-500 hover:text-gray-700 text-3xl leading-none"
@@ -204,7 +229,7 @@ export default function LoginPage() {
                 <label className={labelClass}>Full Name</label>
                 <input
                   type="text"
-                  placeholder="user name"
+                  placeholder="User name"
                   className={inputClass}
                   value={reg.name}
                   onChange={(e) =>
@@ -214,12 +239,17 @@ export default function LoginPage() {
                 />
               </div>
 
+              {/* ✅ Email Validation */}
               <div className="flex flex-row items-center">
                 <label className={labelClass}>Email</label>
                 <input
                   type="email"
                   placeholder="example@example.com"
-                  className={inputClass}
+                  className={`${inputClass} ${
+                    reg.email && !validateEmail(reg.email)
+                      ? "border-red-500"
+                      : ""
+                  }`}
                   value={reg.email}
                   onChange={(e) =>
                     setReg((s) => ({ ...s, email: e.target.value }))
@@ -227,11 +257,16 @@ export default function LoginPage() {
                   required
                 />
               </div>
-
-              <div className="flex flex-row items-center">
+              {reg.email && !validateEmail(reg.email) && (
+                <p className="text-red-600 text-xs mt-1 ml-20">
+                  ❌ Invalid email format
+                </p>
+              )}
+              {/* Password */}
+              <div className="flex flex-row items-center relative">
                 <label className={labelClass}>Password</label>
                 <input
-                  type="password"
+                  type={showRegPassword ? "text" : "password"}
                   placeholder="••••••••"
                   className={inputClass}
                   value={reg.password}
@@ -240,12 +275,20 @@ export default function LoginPage() {
                   }
                   required
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowRegPassword(!showRegPassword)}
+                  className="absolute right-2 top-2 text-sm text-gray-600"
+                >
+                  {showRegPassword ? "Hide" : "Show"}
+                </button>
               </div>
 
-              <div className="flex flex-row items-center">
+              {/* Confirm Password */}
+              <div className="flex flex-row items-center relative">
                 <label className={labelClass}>Confirm Password</label>
                 <input
-                  type="password"
+                  type={showRegPasswordConfirm ? "text" : "password"}
                   placeholder="••••••••"
                   className={inputClass}
                   value={reg.passwordConfirm}
@@ -254,8 +297,18 @@ export default function LoginPage() {
                   }
                   required
                 />
+                <button
+                  type="button"
+                  onClick={() =>
+                    setShowRegPasswordConfirm(!showRegPasswordConfirm)
+                  }
+                  className="absolute right-2 top-2 text-sm text-gray-600"
+                >
+                  {showRegPasswordConfirm ? "Hide" : "Show"}
+                </button>
               </div>
 
+              {/* Phone & Address remain unchanged */}
               <div className="flex flex-row items-center">
                 <label className={labelClass}>Phone</label>
                 <input
@@ -351,7 +404,7 @@ export default function LoginPage() {
                 disabled={registerLoading}
                 className="w-full py-2 px-4 bg-green-600 text-white font-semibold rounded-md hover:bg-green-700 transition disabled:opacity-60"
               >
-                {registerLoading ? "sending..." : "Send"}
+                {registerLoading ? "Sending..." : "Send"}
               </button>
             </form>
           </div>
@@ -360,3 +413,5 @@ export default function LoginPage() {
     </div>
   );
 }
+
+export default LoginPage;

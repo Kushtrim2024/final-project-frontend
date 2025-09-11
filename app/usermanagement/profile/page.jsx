@@ -247,11 +247,11 @@ export default function ProfilePage() {
               {defaultAddress.name && <p>{defaultAddress.name}</p>}
               {defaultAddress.phone && <p>{defaultAddress.phone}</p>}
               <p>
-                {defaultAddress.street}
+                {defaultAddress.street} -
                 {defaultAddress.street2 ? `, ${defaultAddress.street2}` : ""}
               </p>
               <p>
-                {defaultAddress.postalCode}, {defaultAddress.city}
+                {defaultAddress.postalCode} - {defaultAddress.city}
                 {defaultAddress.state ? `, ${defaultAddress.state}` : ""}
               </p>
               <p>{defaultAddress.country}</p>

@@ -1,17 +1,30 @@
 const Sustainability = () => {
+  const initiatives = [
+    "Deliveries with electric vehicles",
+    "Use of eco-friendly packaging",
+    "Partnerships with sustainable restaurants",
+    "Reducing food waste",
+  ];
+
   return (
-    <div className="container mx-auto px-4 py-12">
-      <h1 className="text-3xl font-bold mb-6">Nachhaltigkeit bei Liefrik.de</h1>
-      <p className="text-gray-700 mb-4">
-        Wir setzen uns für eine nachhaltige Lieferkette und umweltfreundliche
-        Prozesse ein. Unser Ziel ist es, den ökologischen Fußabdruck unserer
-        Lieferungen zu minimieren.
+    <div className="container mx-auto px-4 py-12 bg-white/70 min-h-screen">
+      <h1 className="text-4xl font-bold mb-6 text-red-500">Sustainability</h1>
+      <p className="text-gray-700 mb-8">
+        Sustainability is at the heart of our company strategy. We are committed
+        to minimizing our environmental impact while supporting greener choices
+        for our customers and partners.
       </p>
-      <ul className="list-disc list-inside text-gray-700 space-y-2">
-        <li>Elektrische Lieferfahrzeuge für städtische Zustellungen</li>
-        <li>Minimaler Verpackungsmüll und Recycling</li>
-        <li>Partnerschaften mit nachhaltigen Lieferanten</li>
-      </ul>
+
+      <div className="grid md:grid-cols-2 gap-6">
+        {initiatives.map((item, idx) => (
+          <div
+            key={idx}
+            className="bg-white/50 p-6 rounded-lg shadow hover:shadow-lg transition"
+          >
+            {item}
+          </div>
+        ))}
+      </div>
     </div>
   );
 };

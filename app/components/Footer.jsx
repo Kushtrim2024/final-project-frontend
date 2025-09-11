@@ -15,7 +15,7 @@ import {
 
 export default function Footer() {
   return (
-    <footer className="mt-20 bg-slate-950 text-slate-200">
+    <footer className="mt-0 bg-slate-950 text-slate-200">
       {/* top grid */}
       <div className="mx-auto grid max-w-6xl grid-cols-1 gap-10 px-4 py-12 sm:grid-cols-2 lg:grid-cols-4">
         {/* Brand / Payment */}
@@ -104,7 +104,7 @@ export default function Footer() {
                 href="/footerinfo/contact"
                 className="hover:text-yellow-400"
               >
-                Contact
+                Contact Us
               </Link>
             </li>
           </ul>
