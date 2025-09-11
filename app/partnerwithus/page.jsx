@@ -41,6 +41,42 @@ export default function PartnerPage() {
   const inputClass =
     "pl-3 pr-3 py-2 w-4/5 max-[400px]:w-3/4 rounded-md border border-gray-200 bg-white text-gray-900 shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition";
 
+  // -------------------- Passwort-Validierung --------------------
+  function validatePassword(password, email, name) {
+    const errors = [];
+    const specialRe = /[!@#$%^&*()_+\-=[\]{};':"\\|,.<>\/?]/;
+
+    if (!password) {
+      errors.push("Password is required.");
+      return errors;
+    }
+
+    if (password.length < 8)
+      errors.push("Password must be at least 8 characters long.");
+    if (!/[A-Z]/.test(password))
+      errors.push("Password must contain at least one uppercase letter.");
+    if (!/[a-z]/.test(password))
+      errors.push("Password must contain at least one lowercase letter.");
+    if (!/[0-9]/.test(password))
+      errors.push("Password must contain at least one number.");
+    if (!specialRe.test(password))
+      errors.push("Password must contain at least one special character.");
+    if (/\s/.test(password)) errors.push("Password must not contain spaces.");
+
+    // Vermeide Passwörter, die Name/Email (lokaler Teil) enthalten
+    const emailName = (email || "").split("@")[0]?.toLowerCase();
+    const firstName = (name || "").split(" ")[0]?.toLowerCase();
+    const pwLower = password.toLowerCase();
+    if (emailName && emailName.length >= 3 && pwLower.includes(emailName)) {
+      errors.push("Password should not contain your email name.");
+    }
+    if (firstName && firstName.length >= 3 && pwLower.includes(firstName)) {
+      errors.push("Password should not contain your name.");
+    }
+
+    return errors;
+  }
+
   // -------------------- Handlers --------------------
   const handleLoginChange = (e) => {
     const { name, value } = e.target;
@@ -56,7 +92,7 @@ export default function PartnerPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          email: "emie.hettinger50@yahoo.com",
+          email: loginForm.email.trim().toLowerCase(),
           password: "OwnerPW123!",
         }),
       });

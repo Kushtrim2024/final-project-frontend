@@ -2,8 +2,17 @@
 
 import { useState, useEffect } from "react";
 
-const API_GET = "http://localhost:5517/owner/getRestaurantOwnerProfile";
-const API_PUT = "http://localhost:5517/owner/profile/update";
+// Passe das bei Bedarf in deiner .env an, z. B.
+// NEXT_PUBLIC_API_BASE_URL=http://localhost:5517
+const API_BASE =
+  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:5517";
+
+// Router laut deinem Code:
+// router.get("/profile", ...)
+// router.put("/profile/update", ...)
+// und der Router ist vermutlich unter /owner gemountet:
+const API_GET = `${API_BASE}/owner/profile`; // GET
+const API_PUT = `${API_BASE}/owner/profile/update`; // PUT
 
 export default function RestaurantProfile() {
   const [coverPhoto, setCoverPhoto] = useState(null);
@@ -14,10 +23,10 @@ export default function RestaurantProfile() {
   const [minOrder, setMinOrder] = useState("");
   const [deliveryTime, setDeliveryTime] = useState("");
   const [deliveryFee, setDeliveryFee] = useState("");
-
   const [owner, setOwner] = useState(null);
 
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   const cuisineOptions = [
     "Turkish",
@@ -28,44 +37,81 @@ export default function RestaurantProfile() {
     "Burgers",
   ];
 
-  // --- GET: Restaurant Profil laden ---
+  const readJsonSafe = async (res) => {
+    const ct = res.headers.get("content-type") || "";
+    if (ct.includes("application/json")) {
+      try {
+        return await res.json();
+      } catch {
+        return null;
+      }
+    }
+    try {
+      const txt = await res.text();
+      return { error: txt || "Unbekannte Antwort vom Server" };
+    } catch {
+      return null;
+    }
+  };
+
+  // --- GET: Profil laden ---
   useEffect(() => {
-    const fetchProfile = async () => {
+    const ac = new AbortController();
+    (async () => {
       try {
         const token = localStorage.getItem("token");
         if (!token) {
-          console.warn("Kein Token gefunden. Bitte einloggen.");
+          setError("Kein Profil/token gefunden. Bitte einloggen.");
           setLoading(false);
           return;
         }
 
         const res = await fetch(API_GET, {
+          method: "GET",
           headers: {
             Authorization: `Bearer ${token}`,
+            Accept: "application/json",
           },
+          signal: ac.signal,
+          cache: "no-store",
         });
 
-        if (!res.ok) throw new Error("Fehler beim Laden des Profils");
-        const data = await res.json();
+        const parsed = await readJsonSafe(res);
 
+        if (!res.ok) {
+          const serverMsg = parsed?.error || parsed?.message || "";
+          const msg =
+            `Profil laden fehlgeschlagen (${res.status} ${res.statusText}) ${serverMsg}`.trim();
+          console.error(msg);
+          setError(msg);
+          return;
+        }
+
+        const data = parsed || {};
         setName(data.restaurant?.name || "");
         setDescription(data.restaurant?.description || "");
-        setCuisines(data.restaurant?.cuisines || []);
-        setMinOrder(data.restaurant?.minOrder || "");
-        setDeliveryTime(data.restaurant?.deliveryTime || "");
-        setDeliveryFee(data.restaurant?.deliveryFee || "");
+        setCuisines(
+          Array.isArray(data.restaurant?.cuisines)
+            ? data.restaurant.cuisines
+            : []
+        );
+        setMinOrder(data.restaurant?.minOrder ?? "");
+        setDeliveryTime(data.restaurant?.deliveryTime ?? "");
+        setDeliveryFee(data.restaurant?.deliveryFee ?? "");
         setCoverPhoto(data.restaurant?.coverPhoto || null);
         setLogo(data.restaurant?.logo || null);
-
-        setOwner(data.owner || null); // Owner-Daten merken
+        setOwner(data.owner || null);
       } catch (err) {
+        if (err?.name === "AbortError") return;
         console.error(err);
+        setError(
+          err instanceof Error ? err.message : "Unbekannter Fehler beim Laden"
+        );
       } finally {
         setLoading(false);
       }
-    };
-
-    fetchProfile();
+    })();
+    return () => ac.abort();
   }, []);
 
   const toggleCuisine = (cuisine) => {
@@ -76,7 +122,7 @@ export default function RestaurantProfile() {
     );
   };
 
-  // --- PUT: Restaurant Profil speichern ---
+  // --- PUT: Profil speichern ---
   const handleSave = async () => {
     const payload = {
       coverPhoto,
@@ -84,15 +130,15 @@ export default function RestaurantProfile() {
       name,
       description,
       cuisines,
-      minOrder,
-      deliveryTime,
-      deliveryFee,
+      minOrder: minOrder === "" ? "" : Number(minOrder),
+      deliveryTime: deliveryTime === "" ? "" : Number(deliveryTime),
+      deliveryFee: deliveryFee === "" ? "" : Number(deliveryFee),
     };
 
     try {
       const token = localStorage.getItem("token");
       if (!token) {
-        alert("Bitte einloggen, um Änderungen zu speichern.");
+        setError("Bitte einloggen, um Änderungen zu speichern.");
         return;
       }
 
@@ -101,17 +147,30 @@ export default function RestaurantProfile() {
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
+          Accept: "application/json",
         },
         body: JSON.stringify(payload),
       });
 
-      if (!res.ok) throw new Error("Fehler beim Speichern des Profils");
-      const updated = await res.json();
-      alert("Änderungen gespeichert!");
-      console.log("Gespeichert:", updated);
+      const parsed = await readJsonSafe(res);
+
+      if (!res.ok) {
+        const serverMsg = parsed?.error || parsed?.message || "";
+        const msg =
+          `Speichern fehlgeschlagen (${res.status} ${res.statusText}) ${serverMsg}`.trim();
+        console.error(msg);
+        setError(msg);
+        return;
+      }
+
+      setError(null);
+      alert("Änderungen erfolgreich gespeichert!");
+      console.log("Gespeichert:", parsed);
     } catch (err) {
       console.error(err);
-      alert("Fehler beim Speichern");
+      setError(
+        err instanceof Error ? err.message : "Unbekannter Fehler beim Speichern"
+      );
     }
   };
 
@@ -122,6 +181,12 @@ export default function RestaurantProfile() {
   return (
     <div className="p-6 border bg-white border-white rounded-xl max-w-5xl mx-auto text-gray-800 shadow-lg">
       <h1 className="text-2xl font-bold mb-4">Restaurant Profile & Visuals</h1>
+
+      {error && (
+        <div className="mb-4 p-3 rounded-lg bg-red-50 text-red-700 text-sm">
+          {error}
+        </div>
+      )}
 
       {/* Cover Photo */}
       <div className="mb-4 border rounded-lg p-4">
@@ -233,7 +298,7 @@ export default function RestaurantProfile() {
         Save Changes
       </button>
 
-      {/* --- Owner Informationen --- */}
+      {/* Owner Informationen */}
       {owner && (
         <div className="mt-8 p-4 border rounded-lg bg-gray-50">
           <h2 className="text-xl font-semibold mb-2">Owner Information</h2>
