@@ -173,6 +173,26 @@ export default function AdminUsersPage() {
     }
   }
 
+  const getPageButtons = (current, total) => {
+    if (total <= 1) return [1];
+
+    current = Math.max(1, Math.min(current, total));
+
+    if (total === 2) return [1, 2];
+    if (total === 3) return Array.from(new Set([1, current, total]));
+
+    if (current === 1 || current === total) {
+      return [1, "…", total];
+    }
+
+    const out = [1];
+    if (current > 2) out.push("…");
+    out.push(current);
+    if (current < total - 1) out.push("…");
+    out.push(total);
+    return out;
+  };
+
   return (
     <div className="p-6 text-gray-800">
       <div className="flex items-center justify-between mb-4">
@@ -188,7 +208,7 @@ export default function AdminUsersPage() {
       <div className="flex flex-col md:flex-row md:items-center justify-between mb-4 gap-2">
         <input
           placeholder="Search name/email…"
-          className="border rounded px-3 py-2 w-full md:w-1/3"
+          className="border rounded px-3 py-1 w-full md:w-1/3"
           value={q}
           onChange={(e) => {
             setQ(e.target.value);
@@ -261,11 +281,12 @@ export default function AdminUsersPage() {
         </table>
       </div>
 
-      {/* Pagination: Prev | 1 … last | Next */}
+      {/* Pagination: Prev | dynamic buttons | Next */}
       <div className="flex items-center justify-between gap-3 p-3 border-t bg-white mt-4">
         <div className="text-sm text-gray-800">
           Page <b>{page}</b> / {totalPages} • <b>{filtered.length}</b> items
         </div>
+
         <div className="flex items-center gap-2">
           <button
             className="px-2 py-1 border rounded disabled:opacity-50"
@@ -275,29 +296,30 @@ export default function AdminUsersPage() {
             Prev
           </button>
 
-          <button
-            className={`px-3 py-1 border rounded ${
-              page === 1 ? "bg-gray-800 text-white" : "hover:bg-gray-100"
-            }`}
-            onClick={() => setPage(1)}
-          >
-            1
-          </button>
-
-          {totalPages > 2 && <span className="px-2 select-none">…</span>}
-
-          {totalPages > 1 && (
-            <button
-              className={`px-3 py-1 border rounded ${
-                page === totalPages
-                  ? "bg-gray-800 text-white"
-                  : "hover:bg-gray-100"
-              }`}
-              onClick={() => setPage(totalPages)}
-            >
-              {totalPages}
-            </button>
-          )}
+          <div className="flex items-center gap-1">
+            {getPageButtons(page, totalPages).map((n, idx) =>
+              n === "…" ? (
+                <span
+                  key={`ellipsis-${idx}`}
+                  className="px-2 select-none max-[700px]:hidden"
+                >
+                  …
+                </span>
+              ) : (
+                <button
+                  key={`pg-${n}`}
+                  type="button"
+                  aria-current={page === n ? "page" : undefined}
+                  className={`px-3 py-1 border rounded ${
+                    page === n ? "bg-gray-800 text-white" : "hover:bg-gray-100"
+                  }`}
+                  onClick={() => setPage(n)}
+                >
+                  {n}
+                </button>
+              )
+            )}
+          </div>
 
           <button
             className="px-2 py-1 border rounded disabled:opacity-50"

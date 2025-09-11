@@ -21,7 +21,7 @@ export default function NavAdmin() {
   return (
     <nav className="w-full">
       {/* Desktop */}
-      <ul className="hidden md:flex items-center gap-2">
+      <ul className="hidden md:flex items-center gap-2 ">
         {links.map((l) => (
           <li key={l.href}>
             <Link

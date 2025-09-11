@@ -4,6 +4,8 @@ import React, { useEffect, useMemo, useState } from "react";
 
 const BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:5517";
 
+/* ================= Helpers ================= */
+
 // Read token from localStorage (flexible for different key names)
 const readTokenFromStorage = () => {
   if (typeof window === "undefined") return "";
@@ -116,6 +118,21 @@ export default function AdminPanelPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(6);
   const clamp = (n, min, max) => Math.min(Math.max(n, min), max);
+
+  // Actions (commission dummy) — defined early to avoid TDZ in useMemo below
+  function markAsPaid(id) {
+    setData((prev) =>
+      prev.map((res) =>
+        res.id === id
+          ? {
+              ...res,
+              paidCommission:
+                Number(res.totalSales || 0) * Number(res.commissionRate || 0),
+            }
+          : res
+      )
+    );
+  }
 
   // Read token and watch for changes
   useEffect(() => {
@@ -344,7 +361,7 @@ export default function AdminPanelPage() {
     setPage((p) => clamp(p, 1, totalPages));
   }, [totalItems, pageSize]);
 
-  // Reset page to 1 when tab changes
+  // Reset page to 1 when tab changes or filters change
   useEffect(() => {
     setPage(1);
   }, [tab, search, statusFilter]);
@@ -354,21 +371,6 @@ export default function AdminPanelPage() {
     const start = (page - 1) * pageSize;
     return rows.slice(start, start + pageSize);
   }, [rows, page, pageSize]);
-
-  // Actions (commission dummy)
-  const markAsPaid = (id) => {
-    setData((prev) =>
-      prev.map((res) =>
-        res.id === id
-          ? {
-              ...res,
-              paidCommission:
-                Number(res.totalSales || 0) * Number(res.commissionRate || 0),
-            }
-          : res
-      )
-    );
-  };
 
   if (!tokenChecked) return <div className="p-6">Checking…</div>;
   if (loading) return <div className="p-6">Loading…</div>;
@@ -501,7 +503,33 @@ function Table({ headers, rows, emptyText = "No data." }) {
   );
 }
 
-/* ================= Pagination Controls ================= */
+/* ================= Pagination Controls (ellipsis style) ================= */
+
+// Pagination buttons array: 1 … current … total
+const getPageButtons = (current, total) => {
+  if (total <= 1) return [1];
+
+  // safety clamp
+  current = Math.max(1, Math.min(current, total));
+
+  // short cases
+  if (total === 2) return [1, 2];
+  if (total === 3) return Array.from(new Set([1, current, total]));
+
+  // same template for first/last: 1 … total
+  if (current === 1 || current === total) {
+    return [1, "…", total];
+  }
+
+  // general case
+  const out = [1];
+  if (current > 2) out.push("…"); // gap between 1 and current
+  out.push(current); // active page
+  if (current < total - 1) out.push("…"); // gap between current and last
+  out.push(total); // last page
+  return out;
+};
+
 function PaginationControls({
   page,
   setPage,
@@ -510,13 +538,11 @@ function PaginationControls({
   totalItems,
 }) {
   const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 p-3 border-t bg-white mt-4">
       <div className="text-sm text-gray-800">
-        Page <span className="font-semibold">{page}</span>&nbsp;/&nbsp;
-        {totalPages}&nbsp;•&nbsp;
-        <span className="font-semibold">{totalItems}</span>
-        &nbsp;items
+        Page <b>{page}</b> / {totalPages} • <b>{totalItems}</b> items
       </div>
 
       <div className="flex items-center gap-2 text-gray-800">
@@ -542,27 +568,31 @@ function PaginationControls({
           className="px-2 py-1 border rounded disabled:opacity-50"
           onClick={() => setPage((p) => Math.max(1, p - 1))}
           disabled={page === 1}
+          type="button"
         >
           Prev
         </button>
 
+        {/* Dynamic page buttons */}
         <div className="flex items-center gap-1">
-          {Array.from({ length: totalPages }, (_, i) => i + 1).map((n) => (
-            <button
-              key={n}
-              aria-current={page === n ? "page" : undefined}
-              className={`px-3 py-1 border rounded ${
-                page === n ? "bg-gray-800 text-white" : "hover:bg-gray-100"
-              } ${n !== 1 ? "max-[1150px]:hidden" : ""}`}
-              onClick={() => setPage(n)}
-            >
-              {n}
-            </button>
-          ))}
-          {totalPages > 1 && (
-            <span className="hidden max-[1150px]:inline-block px-2 select-none">
-              …
-            </span>
+          {getPageButtons(page, totalPages).map((n, idx) =>
+            n === "…" ? (
+              <span key={`ellipsis-${idx}`} className="px-2 select-none">
+                …
+              </span>
+            ) : (
+              <button
+                key={`pg-${n}`}
+                type="button"
+                aria-current={page === n ? "page" : undefined}
+                className={`px-3 py-1 border rounded ${
+                  page === n ? "bg-gray-800 text-white" : "hover:bg-gray-100"
+                }`}
+                onClick={() => setPage(n)}
+              >
+                {n}
+              </button>
+            )
           )}
         </div>
 
@@ -570,6 +600,7 @@ function PaginationControls({
           className="px-2 py-1 border rounded disabled:opacity-50"
           onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
           disabled={page === totalPages}
+          type="button"
         >
           Next
         </button>

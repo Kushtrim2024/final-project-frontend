@@ -1,19 +1,44 @@
+// app/page.jsx
 "use client";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faSearch } from "@fortawesome/free-solid-svg-icons";
-
-/**
- * HOME (app/page.jsx)
- * - Public endpoint: GET /restaurants
- * - .env.local: NEXT_PUBLIC_API_BASE_URL=http://localhost:5517
- */
+import LoaderOverlay from "./components/LoaderOverlay";
 
 const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5517";
 const PAGE_SIZE_OPTIONS = [9, 12, 18];
+
+/* =============================================================================
+   Stable image helpers (no Math.random → SSR-safe)
+============================================================================= */
+function hashInt(str) {
+  const s = String(str ?? "");
+  let h = 0;
+  for (let i = 0; i < s.length; i++) {
+    h = (h << 5) - h + s.charCodeAt(i);
+    h |= 0;
+  }
+  return Math.abs(h);
+}
+function pickIndex(arrLen, seed) {
+  if (!arrLen) return 0;
+  const h = hashInt(seed);
+  return h % arrLen;
+}
+function seededRestaurantImage(seed, w = 1400, h = 900) {
+  const pool = [
+    `https://images.unsplash.com/photo-1528605248644-14dd04022da1?q=80&w=${w}&auto=format&fit=crop`,
+    `https://images.unsplash.com/photo-1526318472351-c75fcf070305?q=80&w=${w}&auto=format&fit=crop`,
+    `https://images.unsplash.com/photo-1504674900247-0877df9cc836?q=80&w=${w}&auto=format&fit=crop`,
+    `https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?q=80&w=${w}&auto=format&fit=crop`,
+    `https://images.unsplash.com/photo-1559339352-11d035aa65de?q=80&w=${w}&auto=format&fit=crop`,
+    `https://picsum.photos/seed/${hashInt(seed)}/${w}/${h}`,
+  ];
+  return pool[pickIndex(pool.length, seed)];
+}
 
 /** ---------- Cart helpers (localStorage) ---------- */
 const CART_KEY = "liefrik_cart_v1";
@@ -43,6 +68,146 @@ function lineTotal(it) {
   return (Number(it.unitPrice) + extras) * qty;
 }
 
+/** ---------- Locale helpers (localStorage) ---------- */
+const LOCALE_KEY = "LIEFRIK_LOCALE_V1";
+/*
+  localeInfo = {
+    type: "none" | "postcode" | "coords",
+    label: string,
+    payload?: { postcode?: string, lat?: number, lng?: number }
+  }
+*/
+function readLocale() {
+  try {
+    if (typeof window === "undefined")
+      return { type: "none", label: "Choose your locale" };
+    const raw = localStorage.getItem(LOCALE_KEY);
+    return raw
+      ? JSON.parse(raw)
+      : { type: "none", label: "Choose your locale" };
+  } catch {
+    return { type: "none", label: "Choose your locale" };
+  }
+}
+function writeLocale(val) {
+  try {
+    localStorage.setItem(
+      LOCALE_KEY,
+      JSON.stringify(val || { type: "none", label: "Choose your locale" })
+    );
+  } catch {}
+}
+
+/** ---------- Reverse geocoding (lat/lng -> postcode) ---------- */
+// round to ~100m to stabilize cache keys
+function roundCoord(x, decimals = 3) {
+  const f = Math.pow(10, decimals);
+  return Math.round(Number(x) * f) / f;
+}
+const RG_CACHE_KEY = "LIEFRIK_RG_CACHE_V1";
+function readRGCache() {
+  try {
+    const raw = localStorage.getItem(RG_CACHE_KEY);
+    const obj = raw ? JSON.parse(raw) : {};
+    return obj && typeof obj === "object" ? obj : {};
+  } catch {
+    return {};
+  }
+}
+function writeRGCache(map) {
+  try {
+    localStorage.setItem(RG_CACHE_KEY, JSON.stringify(map || {}));
+  } catch {}
+}
+// Nominatim reverse geocode (for production, proxy server-side to avoid rate limits)
+async function reverseGeocodeToPostcode(lat, lng) {
+  const latR = roundCoord(lat),
+    lngR = roundCoord(lng);
+  const key = `${latR},${lngR}`;
+
+  const cache = readRGCache();
+  if (Object.prototype.hasOwnProperty.call(cache, key)) return cache[key];
+
+  const url = new URL("https://nominatim.openstreetmap.org/reverse");
+  url.searchParams.set("format", "jsonv2");
+  url.searchParams.set("lat", String(latR));
+  url.searchParams.set("lon", String(lngR));
+  url.searchParams.set("addressdetails", "1");
+
+  const res = await fetch(url.toString());
+  if (!res.ok) {
+    cache[key] = null;
+    writeRGCache(cache);
+    return null;
+  }
+  const json = await res.json().catch(() => null);
+  const pc = json?.address?.postcode || json?.address?.postcode_v2 || null;
+
+  cache[key] = pc;
+  writeRGCache(cache);
+  return pc;
+}
+
+/** ---------- Forward geocoding (postcode -> lat/lng) ---------- */
+async function forwardGeocodePostcode(postcode) {
+  const pc = String(postcode || "").trim();
+  if (!pc) return null;
+
+  const url = new URL("https://nominatim.openstreetmap.org/search");
+  url.searchParams.set("format", "jsonv2");
+  url.searchParams.set("countrycodes", "de"); // Germany-only
+  url.searchParams.set("postalcode", pc);
+  url.searchParams.set("limit", "1");
+
+  const res = await fetch(url.toString());
+  if (!res.ok) return null;
+
+  const arr = await res.json().catch(() => null);
+  const hit = Array.isArray(arr) && arr[0] ? arr[0] : null;
+  if (!hit) return null;
+
+  const lat = Number(hit.lat),
+    lng = Number(hit.lon);
+  return Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : null;
+}
+
+/** ---------- Frontend fallbacks ---------- */
+const DE_PLZ = /^\d{5}$/; // German PLZ
+
+// Haversine (km)
+function haversine(lat1, lon1, lat2, lon2) {
+  const toRad = (x) => (x * Math.PI) / 180;
+  const R = 6371;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(a));
+}
+
+// Postcode exact match (tolerates whitespace)
+function filterByPostcodeFrontend(items, postcode) {
+  const target = String(postcode || "").trim();
+  if (!target) return [];
+  return (items || []).filter((r) => {
+    const pc = String(r?.address?.postalCode ?? "").trim();
+    return pc.toLowerCase() === target.toLowerCase();
+  });
+}
+
+// Coordinate radius filter (km)
+function filterByCoordsFrontend(items, lat, lng, maxKm = 25) {
+  if (lat == null || lng == null) return [];
+  return (items || []).filter((r) => {
+    const coords = r?.location?.coordinates || [];
+    if (coords.length !== 2) return false;
+    const [lonR, latR] = coords; // [lng, lat]
+    const d = haversine(lat, lng, latR, lonR);
+    return Number.isFinite(d) && d <= maxKm;
+  });
+}
+
 export default function Home() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -51,13 +216,18 @@ export default function Home() {
   const q = (searchParams.get("q") || "").trim();
   const cat = (searchParams.get("cat") || "").trim();
 
-  // === Header state ===
-  const [locale, setLocale] = useState("Choose your locale");
+  // === Header state (Locale modal) ===
+  const [localeInfo, setLocaleInfo] = useState({
+    type: "none",
+    label: "Choose your locale",
+  });
+  const [localeModalOpen, setLocaleModalOpen] = useState(false);
+  const [postcodeInput, setPostcodeInput] = useState("");
 
   // ---- Cart (real) ----
-  const [cartItems, setCartItems] = useState([]); // ← gerçek sepet
-  const [delivery] = useState(8.57);
-  const vatRate = 0.05;
+  const [cartItems, setCartItems] = useState([]);
+  const [delivery] = useState(0);
+  const vatRate = 0.07;
 
   // Derived totals
   const subtotal = useMemo(() => {
@@ -81,77 +251,147 @@ export default function Home() {
   const [allItems, setAllItems] = useState(null);
   const [pageItems, setPageItems] = useState([]);
 
+  // Splash control (full-screen loading on the very first fetch)
+  const firstLoadRef = useRef(true);
+  const [showSplash, setShowSplash] = useState(true);
+
   // Toolbar search local state
   const [searchText, setSearchText] = useState(q);
   useEffect(() => setSearchText(q), [q]);
 
-  // q//cat change then return to first page
+  // q/cat change → go first page
   useEffect(() => {
     setPage(1);
   }, [q, cat]);
 
-  // ---- fetcher ----
+  // read locale on mount
+  useEffect(() => {
+    setLocaleInfo(readLocale());
+  }, []);
+
+  // ---- fetcher with FRONTEND FALLBACKS ----
   useEffect(() => {
     const controller = new AbortController();
+
+    async function fetchAll() {
+      const res = await fetch(`${API_BASE}/restaurants`, {
+        signal: controller.signal,
+        cache: "no-store",
+      });
+      if (!res.ok) throw new Error(`Request failed (${res.status})`);
+      return res.json();
+    }
+
+    async function fetchPrimaryByLocale() {
+      // 1) location endpoint
+      if (
+        localeInfo?.type === "coords" &&
+        localeInfo?.payload?.lat != null &&
+        localeInfo?.payload?.lng != null
+      ) {
+        const { lat, lng } = localeInfo.payload;
+        const url = new URL(`${API_BASE}/restaurants/location`);
+        url.searchParams.set("lat", String(lat));
+        url.searchParams.set("lng", String(lng));
+        const res = await fetch(url.toString(), {
+          signal: controller.signal,
+          cache: "no-store",
+        });
+        if (!res.ok) throw new Error(`Request failed (${res.status})`);
+        const json = await res.json();
+        return { json, endpoint: "location" };
+      }
+
+      // 2) postcode endpoint
+      if (localeInfo?.type === "postcode" && localeInfo?.payload?.postcode) {
+        const url = new URL(`${API_BASE}/restaurants/postcode`);
+        url.searchParams.set("postcode", String(localeInfo.payload.postcode));
+        const res = await fetch(url.toString(), {
+          signal: controller.signal,
+          cache: "no-store",
+        });
+        if (!res.ok) throw new Error(`Request failed (${res.status})`);
+        const json = await res.json();
+        return { json, endpoint: "postcode" };
+      }
+
+      // 3) default: all
+      const json = await fetchAll();
+      return { json, endpoint: "all" };
+    }
 
     async function fetchData() {
       setLoading(true);
       setErr(null);
       try {
-        const url = new URL(`${API_BASE}/restaurants`);
-        url.searchParams.set("page", String(page));
-        url.searchParams.set("limit", String(pageSize));
-        if (q) url.searchParams.set("q", q);
-        if (cat) url.searchParams.set("category", cat);
+        // Primary fetch based on locale selection
+        let { json } = await fetchPrimaryByLocale();
 
-        let res = await fetch(url.toString(), {
-          signal: controller.signal,
-          cache: "no-store",
-        });
-
-        if (!res.ok) {
-          res = await fetch(`${API_BASE}/restaurants`, {
-            signal: controller.signal,
-            cache: "no-store",
-          });
-          setServerMode(false);
-        } else {
+        // Normalize for client-side pagination
+        let items;
+        if (Array.isArray(json)) {
+          items = normalizeRestaurants(json);
+        } else if (json && Array.isArray(json.data)) {
+          items = normalizeRestaurants(json.data);
           setServerMode(true);
-        }
-
-        if (!res.ok) throw new Error(`Request failed (${res.status})`);
-
-        const json = await res.json();
-
-        if (json && Array.isArray(json.data)) {
-          let items = normalizeRestaurants(json.data);
-          if (q) items = filterAndSort(items, q);
-          if (cat) items = filterByCategory(items, cat);
-          setPageItems(items);
-          setLastBatchSize(items.length);
-          setTotalCount(
-            typeof json.total === "number"
-              ? Number(json.total)
-              : q || cat
-              ? items.length
-              : null
-          );
-          setAllItems(null);
-        } else if (Array.isArray(json)) {
-          let items = normalizeRestaurants(json);
-          if (q) items = filterAndSort(items, q);
-          if (cat) items = filterByCategory(items, cat);
-          setAllItems(items);
-          setServerMode(false);
-          setTotalCount(items.length);
-          const start = (page - 1) * pageSize;
-          const end = start + pageSize;
-          const sliced = items.slice(start, end);
-          setPageItems(sliced);
-          setLastBatchSize(sliced.length);
         } else {
-          throw new Error("Unexpected response shape");
+          items = [];
         }
+
+        // FRONTEND FALLBACKS
+        if (localeInfo?.type === "postcode") {
+          const pc = String(localeInfo?.payload?.postcode || "").trim();
+          if (Array.isArray(items) && items.length === 0 && pc) {
+            // a) match by address.postalCode
+            const all = await fetchAll();
+            const allNorm = normalizeRestaurants(Array.isArray(all) ? all : []);
+            let local = filterByPostcodeFrontend(allNorm, pc);
+
+            // b) forward-geocode PLZ and filter by radius if still empty
+            if (!local.length) {
+              const center = await forwardGeocodePostcode(pc).catch(() => null);
+              if (center) {
+                local = filterByCoordsFrontend(
+                  allNorm,
+                  center.lat,
+                  center.lng,
+                  25
+                );
+              }
+            }
+            items = local;
+          }
+        }
+
+        if (localeInfo?.type === "coords") {
+          const { lat, lng } = localeInfo?.payload || {};
+          if (
+            Array.isArray(items) &&
+            items.length === 0 &&
+            lat != null &&
+            lng != null
+          ) {
+            // Pull all and fallback to radius filter
+            const all = await fetchAll();
+            const allNorm = normalizeRestaurants(Array.isArray(all) ? all : []);
+            items = filterByCoordsFrontend(allNorm, lat, lng, 25);
+          }
+        }
+
+        // Search + category filtering
+        if (q) items = filterAndSort(items, q);
+        if (cat) items = filterByCategory(items, cat);
+
+        // Pagination
+        setServerMode(false);
+        setAllItems(items);
+        setTotalCount(items.length);
+
+        const start = (page - 1) * pageSize;
+        const end = start + pageSize;
+        const sliced = items.slice(start, end);
+        setPageItems(sliced);
+        setLastBatchSize(sliced.length);
       } catch (e) {
         const msg = (e && (e.name || "")).toString().toLowerCase();
         const text = (e && (e.message || "")).toString().toLowerCase();
@@ -159,13 +399,27 @@ export default function Home() {
         if (isAbort) return;
         setErr(e.message || "Unknown error");
       } finally {
-        if (!controller.signal.aborted) setLoading(false);
+        setLoading(false);
       }
     }
 
     fetchData();
     return () => controller.abort();
-  }, [page, pageSize, q, cat]);
+  }, [page, pageSize, q, cat, localeInfo]);
+
+  // Hide the splash after the very first completed fetch (short delay avoids flicker)
+  useEffect(() => {
+    if (!loading && firstLoadRef.current) {
+      firstLoadRef.current = false;
+      const t = setTimeout(() => setShowSplash(false), 350);
+      return () => clearTimeout(t);
+    }
+  }, [loading]);
+  // Failsafe: if something goes wrong, auto-hide splash after 2s
+  useEffect(() => {
+    const t = setTimeout(() => setShowSplash(false), 1000);
+    return () => clearTimeout(t);
+  }, []);
 
   // total pages
   const totalPages = useMemo(() => {
@@ -205,10 +459,8 @@ export default function Home() {
 
   /** ===== Cart: load + react to changes ===== */
   useEffect(() => {
-    // mount'ta oku
     setCartItems(readCart());
 
-    // sync if updated on another page
     function handleStorage(e) {
       if (e.key === CART_KEY) {
         try {
@@ -219,7 +471,6 @@ export default function Home() {
         }
       }
     }
-    // return to the previous page
     function handleFocus() {
       setCartItems(readCart());
     }
@@ -252,8 +503,110 @@ export default function Home() {
     });
   }
 
+  /** ===== Group cart items by restaurant name (fallback-safe) ===== */
+  const groupedByRestaurant = useMemo(() => {
+    const groups = new Map();
+    for (const it of cartItems || []) {
+      const key = (
+        it.restaurantName ||
+        it.restaurantTitle ||
+        "Restaurant"
+      ).trim();
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(it);
+    }
+    return groups;
+  }, [cartItems]);
+
+  /** ===== Locale modal handlers ===== */
+  function openLocaleModal() {
+    setLocaleModalOpen(true);
+  }
+  function closeLocaleModal() {
+    setLocaleModalOpen(false);
+  }
+  function clearLocale() {
+    const v = { type: "none", label: "Choose your locale" };
+    setLocaleInfo(v);
+    writeLocale(v);
+  }
+
+  // Use geolocation; prefer PLZ if reverse geocoding returns a German PLZ
+  async function useMyLocation() {
+    try {
+      if (!navigator.geolocation) {
+        alert("Geolocation is not supported by your browser.");
+        return;
+      }
+      const { lat, lng } = await new Promise((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            resolve({
+              lat: pos.coords.latitude,
+              lng: pos.coords.longitude,
+            });
+          },
+          (err) => reject(err),
+          { enableHighAccuracy: true, maximumAge: 300000, timeout: 10000 }
+        );
+      });
+
+      let postcode = null;
+      try {
+        postcode = await reverseGeocodeToPostcode(lat, lng);
+        if (postcode && !DE_PLZ.test(String(postcode))) {
+          postcode = null;
+        }
+      } catch (e) {
+        console.warn("Reverse geocoding failed:", e?.message || e);
+      }
+
+      if (postcode) {
+        const v = {
+          type: "postcode",
+          label: `Postcode ${postcode}`,
+          payload: { postcode },
+        };
+        setLocaleInfo(v);
+        writeLocale(v);
+      } else {
+        const v = {
+          type: "coords",
+          label: "Near me",
+          payload: { lat, lng },
+        };
+        setLocaleInfo(v);
+        writeLocale(v);
+      }
+
+      closeLocaleModal();
+    } catch (e) {
+      console.error(e);
+      alert("Could not get your location.");
+    }
+  }
+
+  function applyPostcode() {
+    const code = (postcodeInput || "").trim();
+    if (!code) return;
+    if (!DE_PLZ.test(code)) {
+      alert("Please enter a valid 5-digit German postcode (e.g., 16929).");
+      return;
+    }
+    const v = {
+      type: "postcode",
+      label: `Postcode ${code}`,
+      payload: { postcode: code },
+    };
+    setLocaleInfo(v);
+    writeLocale(v);
+    closeLocaleModal();
+  }
+
   return (
-    <div className="relative min-h-[100dvh]  ">
+    <div className="relative min-h-[100dvh]">
+      {showSplash && <LoaderOverlay text="Loading" />}
+
       {/* background */}
       <div
         aria-hidden
@@ -265,28 +618,125 @@ export default function Home() {
         <div className="wave" />
       </div>
 
-      {/* Header (location/mini panel) */}
-      <header className="mx-auto max-w-7xl px-4  ">
+      {/* Header (location chooser) */}
+      <header className="mx-auto max-w-7xl px-4">
         <div className="flex items-center gap-2 text-sm text-white">
-          <div className=" rounded-l-xl bg-black/40 px-3 py-1">
+          <div className="rounded-l-xl bg-black/40 px-3 py-1">
             <span>📍</span>
             <span>Delivery to: </span>
           </div>
+
           <button
-            onClick={() =>
-              setLocale(
-                locale === "Choose your locale"
-                  ? "Downtown"
-                  : "Choose your locale"
-              )
-            }
-            className="inline-flex items-center gap-1 rounded-r-2xl bg-black/40 px-3 py-1 "
+            onClick={openLocaleModal}
+            className="inline-flex items-center gap-2 rounded-r-2xl bg-black/40 px-3 py-1 "
+            title="Choose your locale"
           >
-            <span className="font-semibold">{locale}</span>
+            <span className="font-semibold">
+              {localeInfo?.label || "Choose your locale"}
+            </span>
             <span>▾</span>
           </button>
+
+          {localeInfo?.type !== "none" && (
+            <button
+              onClick={clearLocale}
+              className="ml-2 rounded-md bg-black/30 px-2 py-0.5 text-xs hover:bg-black/40"
+              title="Clear location filter"
+            >
+              Clear
+            </button>
+          )}
         </div>
       </header>
+
+      {/* Locale Modal */}
+      {localeModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/50"
+            onClick={closeLocaleModal}
+          />
+          <div className="relative w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl">
+            <h3 className="text-lg font-bold text-gray-900">
+              Choose your locale
+            </h3>
+            <p className="mt-1 text-sm text-gray-600">
+              We’ll show restaurants near your area.
+            </p>
+
+            <div className="mt-4 space-y-3">
+              <button
+                onClick={useMyLocation}
+                className="w-full rounded-lg bg-rose-600 px-4 py-2 text-white hover:bg-rose-700"
+              >
+                Use my location
+              </button>
+
+              <div className="rounded-lg border border-gray-200 p-3">
+                <label className="block text-sm font-medium text-gray-800">
+                  or enter your postcode
+                </label>
+                <div className="mt-2 flex gap-2">
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="e.g. 16929"
+                    value={postcodeInput}
+                    onChange={(e) => setPostcodeInput(e.target.value)}
+                    className="flex-1 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-800 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-rose-400"
+                  />
+                  <button
+                    onClick={applyPostcode}
+                    className="rounded-md bg-gray-900 px-3 py-2 text-sm text-white hover:bg-black"
+                  >
+                    Apply
+                  </button>
+                </div>
+              </div>
+
+              {/* Shortcut example (Downtown removed) */}
+              <div className="flex flex-wrap gap-2">
+                {[
+                  {
+                    label: "16929",
+                    payload: { postcode: "16929" },
+                    type: "postcode",
+                  },
+                ].map((x) => (
+                  <button
+                    key={x.label}
+                    onClick={() => {
+                      const v = {
+                        type: x.type,
+                        label:
+                          x.type === "postcode"
+                            ? `Postcode ${x.payload.postcode}`
+                            : x.label,
+                        payload: x.payload,
+                      };
+                      setLocaleInfo(v);
+                      writeLocale(v);
+                      closeLocaleModal();
+                    }}
+                    className="rounded-full border border-gray-300 px-3 py-1 text-sm hover:bg-gray-50"
+                  >
+                    {x.label}
+                  </button>
+                ))}
+              </div>
+
+              <div className="text-right">
+                <button
+                  onClick={closeLocaleModal}
+                  className="text-sm text-gray-600 hover:text-gray-800"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <main className="mx-auto max-w-7xl gap-6 px-4 pb-16 pt-4 lg:flex">
         <section className="flex-1">
@@ -314,7 +764,8 @@ export default function Home() {
               )}
             </p>
           </div>
-          {/* ---- Search  ---- */}
+
+          {/* ---- Search ---- */}
           <div className="flex items-center">
             <div className="relative w-full max-w-full mb-3">
               <input
@@ -334,7 +785,7 @@ export default function Home() {
               />
             </div>
           </div>
-          {/* ---- /Search---- */}
+          {/* ---- /Search ---- */}
 
           {/* Toolbar */}
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -396,7 +847,7 @@ export default function Home() {
                   key={r._id || r.id}
                   href={`/restaurants/${r._id || r.id}`}
                   className="group relative overflow-hidden rounded-2xl shadow-lg ring-1 ring-black/5 focus:outline-none"
-                  title={`${r.title} — detay`}
+                  title={`${r.title} — details`}
                 >
                   <img
                     src={r.img}
@@ -404,7 +855,11 @@ export default function Home() {
                     className="h-56 w-full object-cover transition-transform duration-300 group-hover:scale-105"
                     onError={(e) => {
                       e.currentTarget.onerror = null;
-                      e.currentTarget.src = getRandomRestaurantImage();
+                      e.currentTarget.src = seededRestaurantImage(
+                        `${r.seed}-alt`,
+                        1400,
+                        900
+                      );
                     }}
                   />
                   <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
@@ -436,13 +891,14 @@ export default function Home() {
                     ? "cursor-not-allowed bg-white/40 text-gray-400 ring-white/30"
                     : "bg-white/80 text-gray-800 ring-black/10 hover:bg-white"
                 }`}
+                aria-label="Previous page"
               >
                 ← Prev
               </button>
 
-              {totalCount != null && (
+              {totalCount != null && totalPages > 1 && (
                 <div className="hidden items-center gap-1 md:flex">
-                  {paginateRange(page, totalPages).map((n, idx) =>
+                  {getPageButtons(page, totalPages).map((n, idx) =>
                     n === "…" ? (
                       <span key={`dots-${idx}`} className="px-2 text-white/80">
                         …
@@ -456,6 +912,7 @@ export default function Home() {
                             ? "bg-rose-600 text-white ring-rose-700"
                             : "bg-white/80 text-gray-800 ring-black/10 hover:bg-white"
                         }`}
+                        aria-current={n === page ? "page" : undefined}
                       >
                         {n}
                       </button>
@@ -472,48 +929,48 @@ export default function Home() {
                     ? "cursor-not-allowed bg-white/40 text-gray-400 ring-white/30"
                     : "bg-white/80 text-gray-800 ring-black/10 hover:bg-white"
                 }`}
+                aria-label="Next page"
               >
                 Next →
               </button>
             </div>
           </div>
 
-          {/* promos */}
-          <div className="mt-8 flex flex-col gap-4 md:flex-row">
-            <div className="flex-1 rounded-2xl bg-white/80 p-5 shadow ring-1 ring-black/5">
-              <div className="flex items-center gap-3">
-                <span className="text-2xl">🍱</span>
-                <div>
-                  <div className="font-bold">Locale Catering</div>
-                  <div className="text-sm text-gray-600">Leave it to us</div>
-                </div>
+          {/* Info / Contact */}
+          <div className="mt-8 rounded-2xl bg-white/85 p-5 shadow ring-1 ring-black/5">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div>
+                <h2 className="text-lg font-bold text-gray-900">Information</h2>
+                <p className="mt-1 text-sm text-gray-700">
+                  Ordering on Liefrik is easy: pick a restaurant, add items to
+                  your cart, and checkout securely. <br /> Delivery time may
+                  vary depending on the restaurant’s workload. If you need help,
+                  our team is here for you.
+                </p>
               </div>
-            </div>
-            <div className="flex-1 rounded-2xl bg-white/80 p-5 shadow ring-1 ring-black/5">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="font-bold">Tell us what you need</div>
-                  <div className="text-sm text-gray-600">
-                    (we respond quickly)
-                  </div>
-                </div>
-                <button className="rounded-lg bg-rose-600 px-4 py-2 text-white hover:bg-rose-700">
-                  Chat
-                </button>
+
+              <div className="mt-3 md:mt-0">
+                <Link
+                  href="/footerinfo/contact"
+                  className="w-[7rem] inline-flex items-center justify-center rounded-lg bg-rose-600 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-700"
+                  title="Contact Us"
+                >
+                  Contact Us
+                </Link>
               </div>
             </div>
           </div>
         </section>
 
         {/* Right panel (real cart) */}
-        <aside className="sticky top-0 h-[100dvh] w-full max-w-[360px] shrink-0 bg-[#12151a] px-5 pt-6 text-white">
+        <aside className="sticky top-4 h-[100dvh] w-full max-w-[360px] shrink-0 bg-[#12151a] px-5 pt-6 text-white">
           <div className="rounded-xl bg-[#1b2027] p-4 ring-1 ring-white/5">
             <div className="mb-3 flex items-center justify-between gap-2">
               <div className="inline-flex items-center gap-2">
-                <span className="inline-flex h-6 w-6 items-center justify-center rounded-md bg-rose-500/20 text-rose-300">
+                <span className="inline-flex h-6 w-6 items-center justify-center rounded-md text-white text-2xl ml-1 ">
                   🛒
                 </span>
-                <span className="font-semibold uppercase tracking-wider">
+                <span className="font-semibold uppercase tracking-wider ml-2">
                   Cart
                 </span>
               </div>
@@ -522,91 +979,119 @@ export default function Home() {
               </span>
             </div>
 
-            {/* Items list */}
+            {/* Items list (grouped by restaurant name) */}
             {cartItems.length === 0 ? (
               <div className="rounded-md bg-[#0f1318] p-3 text-sm text-gray-300">
-                Your Cart is Currently Empty
+                Your cart is currently empty
               </div>
             ) : (
-              <div className="max-h-64 overflow-auto space-y-2">
-                {cartItems.map((it, idx) => {
-                  const extras = lineExtrasSum(it.selectedAddOnsDetailed);
-                  const lt = lineTotal(it);
-                  return (
-                    <div
-                      key={idx}
-                      className="flex gap-3 rounded-lg bg-[#0f1318] p-3 ring-1 ring-white/5"
-                    >
-                      <img
-                        src={it.img}
-                        alt={it.name}
-                        className="h-14 w-14 rounded-md object-cover"
-                        onError={(e) => {
-                          e.currentTarget.onerror = null;
-                          e.currentTarget.src =
-                            "https://picsum.photos/seed/fallback/100/100";
-                        }}
-                      />
-                      <div className="flex-1">
-                        <div className="flex items-start justify-between gap-2">
-                          <div>
-                            <div className="text-sm font-semibold">
-                              {it.name}
-                            </div>
-                            <div className="text-[11px] text-gray-400">
-                              {it.selectedSize
-                                ? `Size: ${it.selectedSize}`
-                                : "—"}
-                            </div>
-                            {Array.isArray(it.selectedAddOnsDetailed) &&
-                              it.selectedAddOnsDetailed.length > 0 && (
-                                <div className="text-[11px] text-gray-400">
-                                  {it.selectedAddOnsDetailed
-                                    .map((a) => a.name)
-                                    .join(", ")}
-                                </div>
-                              )}
-                          </div>
-                          <button
-                            className="text-[11px] text-rose-400 hover:text-rose-300"
-                            onClick={() => removeItem(idx)}
-                          >
-                            Remove
-                          </button>
+              <div className="max-h-64 overflow-auto space-y-3">
+                {[...groupedByRestaurant.entries()].map(
+                  ([restName, items], gi) => (
+                    <div key={`${restName}-${gi}`} className="space-y-2">
+                      <div className="flex items-center justify-between px-1">
+                        <div className="text-sm font-semibold text-white/90">
+                          {restName}
                         </div>
-
-                        <div className="mt-2 flex items-center justify-between">
-                          <div className="inline-flex items-center rounded-md bg-black/40">
-                            <button
-                              className="h-7 w-7"
-                              onClick={() => changeQty(idx, -1)}
-                              aria-label="Decrease"
-                            >
-                              –
-                            </button>
-                            <div className="w-8 text-center text-sm">
-                              {it.qty}
-                            </div>
-                            <button
-                              className="h-7 w-7"
-                              onClick={() => changeQty(idx, +1)}
-                              aria-label="Increase"
-                            >
-                              +
-                            </button>
-                          </div>
-                          <div className="text-sm font-semibold">
-                            € {lt.toFixed(2)}
-                          </div>
-                        </div>
-                        <div className="mt-1 text-[11px] text-gray-400">
-                          Unit €{Number(it.unitPrice).toFixed(2)}
-                          {extras > 0 ? ` + extras €${extras.toFixed(2)}` : ""}
+                        <div className="text-xs text-white/60">
+                          {items.length} item{items.length !== 1 ? "s" : ""}
                         </div>
                       </div>
+
+                      {items.map((it) => {
+                        const absoluteIndex = cartItems.indexOf(it);
+                        const extras = lineExtrasSum(it.selectedAddOnsDetailed);
+                        const lt = lineTotal(it);
+                        return (
+                          <div
+                            key={`${restName}-${absoluteIndex}`}
+                            className="flex gap-3 rounded-lg bg-[#0f1318] p-3 ring-1 ring-white/5"
+                          >
+                            <img
+                              src={it.img}
+                              alt={it.name}
+                              className="h-14 w-14 rounded-md object-cover"
+                              onError={(e) => {
+                                e.currentTarget.onerror = null;
+                                e.currentTarget.src = seededRestaurantImage(
+                                  `${String(
+                                    it.restaurantId || it.id || it.name
+                                  )}-alt`,
+                                  100,
+                                  100
+                                );
+                              }}
+                            />
+                            <div className="flex-1">
+                              <div className="flex items-start justify-between gap-2">
+                                <div>
+                                  <div className="text-sm font-semibold">
+                                    {it.name}
+                                  </div>
+                                  <div className="text-[11px] text-gray-400">
+                                    {it.selectedSize
+                                      ? `Size: ${it.selectedSize}`
+                                      : "—"}
+                                  </div>
+                                  {Array.isArray(it.selectedAddOnsDetailed) &&
+                                    it.selectedAddOnsDetailed.length > 0 && (
+                                      <div className="text-[11px] text-gray-400">
+                                        {it.selectedAddOnsDetailed
+                                          .map((a) => a.name)
+                                          .join(", ")}
+                                      </div>
+                                    )}
+                                  <div className="text-[11px] text-gray-400 italic mt-0.5">
+                                    {it.restaurantName ||
+                                      it.restaurantTitle ||
+                                      "Restaurant"}
+                                  </div>
+                                </div>
+                                <button
+                                  className="text-[11px] text-rose-400 hover:text-rose-300"
+                                  onClick={() => removeItem(absoluteIndex)}
+                                >
+                                  Remove
+                                </button>
+                              </div>
+
+                              <div className="mt-2 flex items-center justify-between">
+                                <div className="inline-flex items-center rounded-md bg-black/40">
+                                  <button
+                                    className="h-7 w-7"
+                                    onClick={() => changeQty(absoluteIndex, -1)}
+                                    aria-label="Decrease"
+                                  >
+                                    –
+                                  </button>
+                                  <div className="w-8 text-center text-sm">
+                                    {it.qty}
+                                  </div>
+                                  <button
+                                    className="h-7 w-7"
+                                    onClick={() => changeQty(absoluteIndex, +1)}
+                                    aria-label="Increase"
+                                  >
+                                    +
+                                  </button>
+                                </div>
+                                <div className="text-sm font-semibold">
+                                  € {lt.toFixed(2)}
+                                </div>
+                              </div>
+                              <div className="mt-1 text-[11px] text-gray-400">
+                                Unit €{Number(it.unitPrice).toFixed(2)}
+                                {extras > 0
+                                  ? ` + extras €${extras.toFixed(2)}`
+                                  : ""}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
-                  );
-                })}
+                  )
+                )}
               </div>
             )}
 
@@ -621,7 +1106,7 @@ export default function Home() {
                 <span className="font-medium">€ {delivery.toFixed(2)}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span>VAT 5%</span>
+                <span>VAT 7%</span>
                 <span className="font-medium">€ {vat.toFixed(2)}</span>
               </div>
               <div className="mt-2 border-t border-white/10 pt-3 text-base font-semibold text-white">
@@ -638,39 +1123,6 @@ export default function Home() {
               onClick={() => router.push("/checkout")}
             >
               CHECKOUT
-            </button>
-          </div>
-
-          <div className="mt-5">
-            <div className="mb-2 flex items-center justify-between">
-              <span className="rounded-md bg-indigo-500/20 px-2 py-1 text-xs font-semibold text-indigo-300">
-                COUPONS (12)
-              </span>
-              <button className="text-xs text-gray-400 hover:text-white">
-                ADD COUPON
-              </button>
-            </div>
-
-            <div className="relative rounded-xl bg-[#1b2027] p-3 ring-1 ring-white/5">
-              <div className="flex items-center gap-3">
-                <img
-                  src="https://images.unsplash.com/photo-1542281286-9e0a16bb7366?q=80&w=600&auto=format&fit=crop"
-                  alt="coupon"
-                  className="h-28 w-24 rounded-lg object-cover"
-                />
-                <div className="flex-1">
-                  <div className="text-lg font-extrabold leading-5">
-                    SPEND 200 GET 50 € OFF
-                  </div>
-                  <div className="mt-2 text-xs text-gray-300">
-                    Spend 200€, Get 50€ Off
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <button className="mt-3 w-full rounded-lg bg-[#0f1318] py-2 text-sm text-gray-300 ring-1 ring-white/10 hover:bg-[#0b0f13]">
-              VIEW ALL
             </button>
           </div>
         </aside>
@@ -765,16 +1217,6 @@ function slugify(text) {
     .replace(/(^-|-$)+/g, "");
 }
 
-function getRandomRestaurantImage() {
-  const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
-  const providers = [
-    "https://source.unsplash.com/random/1400x900/?restaurant,food",
-    "https://loremflickr.com/1400/900/restaurant,food/all",
-    `https://picsum.photos/1400/900?random=${Math.floor(Math.random() * 1e9)}`,
-  ];
-  return pick(providers);
-}
-
 function extractCategories(x) {
   const arr = Array.isArray(x?.categories) ? x.categories : [];
   return Array.from(
@@ -782,7 +1224,7 @@ function extractCategories(x) {
   );
 }
 
-function pickBestImage(x) {
+function pickBestImage(x, seed) {
   const candidates = [
     x?.img,
     x?.image,
@@ -793,7 +1235,7 @@ function pickBestImage(x) {
   const found = candidates.find(
     (u) => typeof u === "string" && /^https?:\/\//i.test(u)
   );
-  return found || getRandomRestaurantImage();
+  return found || seededRestaurantImage(seed, 1400, 900);
 }
 
 function singularizeSlug(slug) {
@@ -832,7 +1274,10 @@ function normalizeRestaurants(arr) {
       x.description ||
       "—";
 
-    const img = pickBestImage(x);
+    const seed =
+      x?._id || x?.id || x?.restaurantName || x?.name || slugify(title);
+
+    const img = pickBestImage(x, seed);
     const description = x.description || "";
 
     const dishesArr = Array.isArray(x.meals)
@@ -857,6 +1302,7 @@ function normalizeRestaurants(arr) {
 
     return {
       ...x,
+      seed,
       title,
       subtitle,
       img,
@@ -911,27 +1357,29 @@ function filterByCategory(items, catFromQuery) {
   });
 }
 
-function paginateRange(current, total) {
-  const delta = 1;
-  const range = [];
-  const rangeWithDots = [];
-  let l;
-  for (let i = 1; i <= total; i++) {
-    if (
-      i === 1 ||
-      i === total ||
-      (i >= current - delta && i <= current + delta)
-    ) {
-      range.push(i);
-    }
+/* ---------- Pagination buttons: 1 … current … last ---------- */
+function getPageButtons(current, total) {
+  if (total <= 1) return [1];
+
+  current = Math.max(1, Math.min(current, total));
+
+  const pages = [1];
+
+  if (current > 2) {
+    pages.push("…");
   }
-  for (let i of range) {
-    if (l) {
-      if (i - l === 2) rangeWithDots.push(l + 1);
-      else if (i - l !== 1) rangeWithDots.push("…");
-    }
-    rangeWithDots.push(i);
-    l = i;
+
+  if (current !== 1 && current !== total) {
+    pages.push(current);
   }
-  return rangeWithDots;
+
+  if (current < total - 1) {
+    pages.push("…");
+  }
+
+  if (total !== 1) {
+    pages.push(total);
+  }
+
+  return pages;
 }
