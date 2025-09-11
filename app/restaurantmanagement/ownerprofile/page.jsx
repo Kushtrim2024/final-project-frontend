@@ -16,7 +16,27 @@ export default function ProfilePage() {
   });
   const [error, setError] = useState(null);
 
+  // hilft beim sicheren JSON-Parse (falls Server HTML-Fehler schickt)
+  const readJsonSafe = async (res) => {
+    const ct = res.headers.get("content-type") || "";
+    if (ct.includes("application/json")) {
+      try {
+        return await res.json();
+      } catch {
+        return null;
+      }
+    }
+    try {
+      const txt = await res.text();
+      return { error: txt || "Unbekannte Server-Antwort" };
+    } catch {
+      return null;
+    }
+  };
+
   useEffect(() => {
+    const ac = new AbortController();
+
     const fetchProfile = async () => {
       try {
         const token = localStorage.getItem("token");
@@ -26,45 +46,61 @@ export default function ProfilePage() {
         }
 
         const res = await fetch("http://localhost:5517/owner/profile", {
-          headers: { Authorization: `Bearer ${token}` },
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
+          },
+          cache: "no-store",
+          signal: ac.signal,
         });
+
+        const data = await readJsonSafe(res);
 
         if (!res.ok) {
-          const text = await res.text();
-          throw new Error(`Error ${res.status}: ${text}`);
+          const serverMsg = data?.error || data?.message || "";
+          throw new Error(
+            `Error ${res.status} ${res.statusText} ${serverMsg}`.trim()
+          );
         }
 
-        const data = await res.json();
-        setUser(data);
+        // Normalisieren: unterstütze { owner, restaurant } oder flache Struktur
+        const owner = data?.owner ?? data ?? {};
+        const addr =
+          owner.address && typeof owner.address === "object"
+            ? owner.address
+            : { street: "", city: "", postalCode: "", country: "" };
+
+        setUser(owner);
         setForm({
-          name: data.name || "",
-          email: data.email || "",
-          phone: data.phone || "",
-          address: data.address || {
-            street: "",
-            city: "",
-            postalCode: "",
-            country: "",
-          },
-          restaurantName: data.restaurantName || "",
-          taxNumber: data.taxNumber || "",
-          website: data.website || "",
+          name: owner.name || "",
+          email: owner.email || "",
+          phone: owner.phone || "",
+          address: addr,
+          restaurantName: owner.restaurantName || "",
+          taxNumber: owner.taxNumber || "",
+          website: owner.website || "",
         });
       } catch (err) {
-        setError(err.message);
+        if (err?.name === "AbortError") return;
+        setError(err instanceof Error ? err.message : "Unknown error");
       }
     };
 
     fetchProfile();
+    return () => ac.abort();
   }, []);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
     if (name.startsWith("address.")) {
       const key = name.split(".")[1];
-      setForm({ ...form, address: { ...form.address, [key]: value } });
+      setForm((prev) => ({
+        ...prev,
+        address: { ...prev.address, [key]: value },
+      }));
     } else {
-      setForm({ ...form, [name]: value });
+      setForm((prev) => ({ ...prev, [name]: value }));
     }
   };
 
@@ -72,26 +108,33 @@ export default function ProfilePage() {
   const handleSave = () => {
     setUser(form);
     setEditing(false);
-    alert("Profile saved locally!");
+    alert("Änderungen erfolgreich gespeichert!"); // Text korrigiert
   };
 
   if (error)
     return <p className="text-red-500 mt-10 text-center">❌ {error}</p>;
   if (!user) return <p className="text-center mt-10">Loading profile...</p>;
 
-  const addressString = user.address
-    ? `${user.address.street}, ${user.address.postalCode} ${user.address.city}, ${user.address.country}`
-    : "—";
+  const safeAddr = user.address || {
+    street: "",
+    city: "",
+    postalCode: "",
+    country: "",
+  };
+  const addressString =
+    safeAddr.street || safeAddr.city || safeAddr.postalCode || safeAddr.country
+      ? `${safeAddr.street}, ${safeAddr.postalCode} ${safeAddr.city}, ${safeAddr.country}`
+      : "—";
 
   return (
-    <div className="max-w-2xl mx-auto mt-10 bg-white shadow-xl rounded-xl p-8 text-gray-800">
+    <div className="max-w-2xl mx-auto mt-10 bg-white/80 backdrop-blur-sm shadow-xl rounded-xl p-8 text-gray-800">
       <div className="flex items-center gap-6 mb-6">
         <img
           src="/avatar.jpg"
           alt="Profilbild"
           className="w-24 h-24 rounded-full border-2 border-gray-300"
         />
-        <h1 className="text-3xl font-bold">{user.name}</h1>
+        <h1 className="text-3xl font-bold">{user.name || "—"}</h1>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -106,7 +149,7 @@ export default function ProfilePage() {
               className="mt-1 w-full p-2 border rounded"
             />
           ) : (
-            <p className="mt-1">{user.name}</p>
+            <p className="mt-1">{user.name || "—"}</p>
           )}
         </div>
 
@@ -121,7 +164,7 @@ export default function ProfilePage() {
               className="mt-1 w-full p-2 border rounded"
             />
           ) : (
-            <p className="mt-1">{user.email}</p>
+            <p className="mt-1">{user.email || "—"}</p>
           )}
         </div>
 

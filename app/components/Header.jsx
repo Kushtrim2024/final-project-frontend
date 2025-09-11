@@ -12,6 +12,8 @@ import {
   faAngleDown,
   faRightFromBracket,
   faGear,
+  faBars,
+  faXmark,
 } from "@fortawesome/free-solid-svg-icons";
 
 /** ====== CONFIG ====== */
@@ -228,6 +230,8 @@ export default function Header() {
   const userMenuRef = useRef(null);
   const restMenuRef = useRef(null);
 
+  const [showMobileMenu, setShowMobileMenu] = useState(false);
+
   useEffect(() => setActive(catFromUrl || defaultActive), [catFromUrl]);
 
   const updateIndicator = (slug) => {
@@ -339,6 +343,7 @@ export default function Header() {
     setDisplayName(null);
     setShowUserMenu(false);
     setShowRestaurantMenu(false);
+    setShowMobileMenu(false);
     if (typeof window !== "undefined") window.location.href = "/login";
   }
 
@@ -352,9 +357,32 @@ export default function Header() {
     </span>
   );
 
+  // Prevent background scroll when mobile menu is open
+  useEffect(() => {
+    if (showMobileMenu) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "hidde";
+    }
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [showMobileMenu]);
+
   return (
     <header className="fixed top-0 z-50 flex flex-col w-full h-36 max-[700px]:h-44 transition-colors duration-300 bg-orange-200/25 backdrop-blur-md shadow-md ">
-      <div className="relative w-full h-32 flex items-center justify-center mt-2 mx-auto  max-[700px]:mt-10">
+      <div className="relative w-full h-32 flex items-center justify-center mt-2 mx-auto  max-[100px]:mt-10">
+        {/* Mobile: Hamburger */}
+        <button
+          className="absolute right-3 top-4 p-2 rounded-xl bg-white/70 shadow max-[900px]:flex hidden items-center justify-center focus:outline-none focus:ring-2 focus:ring-orange-400"
+          aria-label="Open menu "
+          aria-expanded={showMobileMenu}
+          aria-controls="mobile-menu"
+          onClick={() => setShowMobileMenu(true)}
+        >
+          <FontAwesomeIcon icon={faBars} className="h-5 w-5 text-gray-800" />
+        </button>
+
         {/* Logo */}
         <section className="absolute bottom-[-15px] left-25 h-36 w-34 flex items-center justify-left max-[1000px]:scale-85 max-[1000px]:left-[15px] max-[650px]:scale-70 max-[600px]:left-[-5px]  max-[600px]:top-[-15px]">
           <Link href="/">
@@ -368,9 +396,12 @@ export default function Header() {
           </Link>
         </section>
 
-        {/* categories--------------------------------------------------------------------- */}
-        <nav aria-label="Categories" className="relative flex justify-center ">
-          <div
+        {/* categories (hidden on mobile) */}
+        <nav
+          aria-label="Categories"
+          className="relative flex-wrap justify-center max-[1200px]:hidden"
+        >
+          <ul
             ref={railRef}
             className="flex gap-10 md:gap-12 justify-center relative px-4"
           >
@@ -384,39 +415,40 @@ export default function Header() {
               const isActive = active === slug;
               const href = buildHrefWithCat(slug);
               return (
-                <Link
-                  key={slug}
-                  data-slug={slug}
-                  href={href}
-                  onMouseEnter={() => updateIndicator(slug)}
-                  onMouseLeave={() => updateIndicator(active)}
-                  className={`group flex flex-col items-center transition-all duration-300  ${
-                    isActive
-                      ? "text-orange-500 scale-105"
-                      : "text-gray-800 hover:text-red-500 hover:scale-105"
-                  }`}
-                >
-                  <Image
-                    src={c.icon}
-                    alt={c.label}
-                    width={110}
-                    height={110}
-                    className="h-16 w-16 object-contain mb-1 drop-shadow-md transition-transform group-hover:scale-110"
-                  />
-                  <span className="text-xs font-medium tracking-tight">
-                    {c.label}
-                  </span>
-                </Link>
+                <li key={slug}>
+                  <Link
+                    data-slug={slug}
+                    href={href}
+                    onMouseEnter={() => updateIndicator(slug)}
+                    onMouseLeave={() => updateIndicator(active)}
+                    className={`group flex flex-col items-center transition-all duration-300 ${
+                      isActive
+                        ? "text-orange-500 scale-105"
+                        : "text-gray-800 hover:text-red-500 hover:scale-105"
+                    }`}
+                  >
+                    <Image
+                      src={c.icon}
+                      alt={c.label}
+                      width={110}
+                      height={110}
+                      className="h-16 w-16 object-contain mb-1 drop-shadow-md transition-transform group-hover:scale-110"
+                    />
+                    <span className="text-xs font-medium tracking-tight">
+                      {c.label}
+                    </span>
+                  </Link>
+                </li>
               );
             })}
-          </div>
+          </ul>
         </nav>
 
-        {/* recht actions */}
-        <section className="absolute right-20 bottom-15 space-x-2 lg:w-70 sm:w-40 flex items-center justify-end mr-2">
+        {/* right actions (hidden on mobile) */}
+        <section className="absolute right-20 bottom-15 space-x-2 lg:w-70 sm:w-40 flex items-center justify-end mr-2 max-[700px]:hidden">
           {/* Restaurant owner */}
           {authChecked ? (
-            role === "restaurant" ? (
+            role === "restaurantborder borderborder border" ? (
               <div className="relative" ref={restMenuRef}>
                 <button
                   className="text-gray-800 hover:text-red-500 transition-all duration-200 transform hover:translate-y-1 flex items-center cursor-pointer rounded-md px-2 py-1 bg-white/50"
@@ -550,6 +582,169 @@ export default function Header() {
           </Link>
         </section>
       </div>
+
+      {/* ===== Mobile Fullscreen Menu ===== */}
+      {showMobileMenu && (
+        <div
+          id="mobile-menu"
+          className="fixed inset-0 z-[60] bg-white/95 backdrop-blur-md"
+          role="dialog"
+          aria-modal="true"
+        >
+          <div className="flex items-center justify-between px-4 py-3 border-b border-orange-200">
+            <Link
+              href="/"
+              onClick={() => setShowMobileMenu(false)}
+              className="flex items-center gap-2"
+            >
+              <Image
+                src="/logo.png"
+                alt="Liefrik Logo"
+                width={36}
+                height={36}
+              />
+              <span className="font-semibold text-lg">Liefrik</span>
+            </Link>
+            <button
+              className="p-2 rounded-xl bg-white/70 shadow focus:outline-none focus:ring-2 focus:ring-orange-400"
+              aria-label="Close menu"
+              onClick={() => setShowMobileMenu(false)}
+            >
+              <FontAwesomeIcon
+                icon={faXmark}
+                className="h-5 w-5 text-gray-800"
+              />
+            </button>
+          </div>
+
+          {/* Sections */}
+          <div className="overflow-y-auto h-[calc(35vh-90px)] bg-white">
+            {/* Categories */}
+            <div className="px-4 py-3">
+              <h2 className="text-sm font-semibold  text-gray-700 mb-2">
+                Kategorien
+              </h2>
+              <ul className="flex-1/5 gap-3">
+                {CATEGORIES.map((c) => {
+                  const slug = slugify(c.label);
+                  const href = buildHrefWithCat(slug);
+                  const isActive = active === slug;
+                  return (
+                    <li key={slug}>
+                      <Link
+                        href={href}
+                        className={`flex flex-col items-center rounded-xl border ${
+                          isActive ? "border-orange-400" : "border-transparent"
+                        } bg-white shadow-sm px-2 py-3 active:scale-[0.98] transition`}
+                        onClick={() => setShowMobileMenu(false)}
+                      >
+                        <Image
+                          src={c.icon}
+                          alt={c.label}
+                          width={48}
+                          height={48}
+                          className="h-12 w-12 object-contain"
+                        />
+                        <span className="mt-1 text-[20px] font-medium text-gray-800">
+                          {c.label}
+                        </span>
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+
+            {/* Account / Owner */}
+            <div className="px-4 py-3 border-t border-orange-100">
+              <h2 className="text-sm font-semibold text-gray-700 mb-2">
+                Konto
+              </h2>
+              {!authChecked ? (
+                <div className="text-gray-700 text-sm flex items-center">
+                  Lädt <LoadingDots />
+                </div>
+              ) : role === "menumanagement" ? (
+                <div className="flex flex-col gap-2">
+                  <Link
+                    href={settingsHref}
+                    className="flex items-center gap-2 rounded-lg bg-white px-3 py-2 shadow-sm border border-orange-100"
+                    onClick={() => setShowMobileMenu(false)}
+                  >
+                    <FontAwesomeIcon icon={faGear} className="h-4 w-4" />
+                    <span>Einstellungen</span>
+                  </Link>
+                  <button
+                    className="flex items-center gap-2 rounded-lg bg-red-50 text-red-700 px-3 py-2 shadow-sm border border-red-100"
+                    onClick={handleLogout}
+                  >
+                    <FontAwesomeIcon
+                      icon={faRightFromBracket}
+                      className="h-4 w-4"
+                    />
+                    <span>Logout</span>
+                  </button>
+                </div>
+              ) : role === "user" ? (
+                <div className="flex flex-col gap-2">
+                  <Link
+                    href={settingsHref}
+                    className="flex items-center gap-2 rounded-lg bg-white px-3 py-2 shadow-sm border border-orange-100"
+                    onClick={() => setShowMobileMenu(false)}
+                  >
+                    <FontAwesomeIcon icon={faGear} className="h-4 w-4" />
+                    <span>Einstellungen</span>
+                  </Link>
+                  <button
+                    className="flex items-center gap-2 rounded-lg bg-red-50 text-red-700 px-3 py-2 shadow-sm border border-red-100"
+                    onClick={handleLogout}
+                  >
+                    <FontAwesomeIcon
+                      icon={faRightFromBracket}
+                      className="h-4 w-4"
+                    />
+                    <span>Logout</span>
+                  </button>
+                </div>
+              ) : (
+                <div className="flex gap-2">
+                  <Link
+                    href="/login"
+                    className="flex-1 text-center rounded-lg bg-white px-3 py-2 shadow-sm border border-orange-100"
+                    onClick={() => setShowMobileMenu(false)}
+                  >
+                    <FontAwesomeIcon icon={faUser} className="h-4 w-4 mr-1" />
+                    Account
+                  </Link>
+                  <Link
+                    href="/partnerwithus"
+                    className="flex-1 text-center rounded-lg bg-white px-3 py-2 shadow-sm border-pink-200 "
+                    onClick={() => setShowMobileMenu(false)}
+                  >
+                    <FontAwesomeIcon icon={faStore} className="h-4 w-4 mr-1" />
+                    Test Owner
+                  </Link>
+                </div>
+              )}
+            </div>
+
+            {/* Cart */}
+            <div className="px-4 py-3 border-t border-orange-100">
+              <Link
+                href="/cart"
+                className="flex items-center justify-between rounded-xl bg-white px-4 py-3 shadow-sm border border-orange-100 active:scale-[0.99]"
+                onClick={() => setShowMobileMenu(false)}
+              >
+                <div className="flex items-center gap-3 border border-pink-100 rounded-full px-3 py-1 bg-pink-100">
+                  <FontAwesomeIcon icon={faShoppingCart} className="h-5 w-5" />
+                  <span>Warenkorb</span>
+                </div>
+                <span className="text-xs text-gray-500">öffnen</span>
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
     </header>
   );
 }
