@@ -1,7 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import Image from "next/image";
+import { useState, useEffect } from "react";
 
 export default function PaymentMethodsPage() {
   const [paymentMethods, setPaymentMethods] = useState([]);
@@ -12,12 +11,11 @@ export default function PaymentMethodsPage() {
   });
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [token, setToken] = useState(null);
-  const [userId, setUserId] = useState(null);
-  const dropdownRef = useRef(null);
 
   const creditCardOptions = ["Visa", "MasterCard"];
   const paymentOptions = ["Credit Card", "PayPal", "Apple Pay", "Google Pay"];
 
+  // Mapping: Frontend → Backend
   const mapTypeToBackend = {
     "Credit Card": "card",
     PayPal: "paypal",
@@ -25,159 +23,151 @@ export default function PaymentMethodsPage() {
     "Google Pay": "googlepay",
   };
 
+  // ✅ Icon passend zum Backend-Typ
   const getIcon = (type, cardType) => {
-    if (type === "Credit Card" && cardType) {
-      switch (cardType.toLowerCase()) {
-        case "visa":
-          return "/visa.svg";
-        case "mastercard":
-          return "/mastercard.svg";
-        default:
-          return "/creditcard.svg";
-      }
-    }
     switch (type) {
-      case "PayPal":
+      case "card":
+        if (cardType?.toLowerCase() === "visa") return "/visa.svg";
+        if (cardType?.toLowerCase() === "mastercard") return "/mastercard.svg";
+        return "/creditcard.svg";
+      case "paypal":
         return "/paypal.svg";
-      case "Apple Pay":
+      case "applepay":
         return "/applepay.svg";
-      case "Google Pay":
+      case "googlepay":
         return "/googlepay.svg";
       default:
         return "/creditcard.svg";
     }
   };
 
-  // Clientseitig Token/UserId laden
+  // 🔑 Token laden
   useEffect(() => {
-    setToken(localStorage.getItem("token"));
-    setUserId(localStorage.getItem("userId"));
+    const storedToken = localStorage.getItem("token");
+    if (storedToken) setToken(storedToken);
   }, []);
 
-  // Load payment methods from cart
+  // ✅ Payment Methods laden nach Login
   useEffect(() => {
-    if (!token || !userId) return;
-
-    fetch(`http://localhost:5517/cart/${userId}`, {
+    if (!token) return;
+    fetch("http://localhost:5517/cart/payment-methods", {
       method: "GET",
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((res) => res.json())
       .then((data) => {
-        if (data?.cart?.paymentMethod) {
-          // Das Backend speichert nur eine Methode pro Cart
-          const method = Object.keys(mapTypeToBackend).find(
-            (k) => mapTypeToBackend[k] === data.cart.paymentMethod
-          );
-          setPaymentMethods([
-            {
-              type: data.cart.paymentMethod,
-              details: "", // Backend speichert keine Details
-              cardType: method === "Credit Card" ? "visa" : undefined,
-            },
-          ]);
+        if (data?.paymentMethods) {
+          setPaymentMethods(data.paymentMethods);
         }
       })
-      .catch((err) => console.error("Error loading payment methods:", err));
-  }, [token, userId]);
+      .catch(console.error);
+  }, [token]);
 
-  // Close dropdown on outside click
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-        setDropdownOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  // Add new payment method (Backend kompatibel)
+  // Neue Payment Method hinzufügen
   const handleAdd = async () => {
-    if (!newMethod.type) {
-      alert("Bitte Zahlungsmethode auswählen!");
-      return;
-    }
+    if (!token) return alert("Token fehlt! Bitte neu einloggen.");
+    const validateEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
-    if (!userId || !token) {
-      alert("UserId oder Token fehlt! Bitte neu einloggen.");
-      return;
+    if (["PayPal", "Apple Pay", "Google Pay"].includes(newMethod.type)) {
+      if (!validateEmail(newMethod.details))
+        return alert("Ungültige E-Mail-Adresse");
     }
 
     try {
-      const res = await fetch("http://localhost:5517/cart/choose-payment", {
+      const res = await fetch("http://localhost:5517/cart/add-payment", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          userId,
-          paymentMethod: mapTypeToBackend[newMethod.type], // nur das, was das Backend erwartet
+          type: mapTypeToBackend[newMethod.type],
+          cardType:
+            newMethod.type === "Credit Card" ? newMethod.cardType : undefined,
+          cardNumber:
+            newMethod.type === "Credit Card" ? newMethod.details : undefined,
+          expiryDate:
+            newMethod.type === "Credit Card" ? newMethod.expiryDate : undefined,
+          email:
+            newMethod.type !== "Credit Card" ? newMethod.details : undefined,
         }),
       });
 
       const data = await res.json();
-      console.log("Backend response:", res.status, data);
+      if (!res.ok) return alert(data.message || "Fehler beim Speichern!");
 
-      if (!res.ok) {
-        alert(data.message || "Fehler beim Speichern!");
-        return;
-      }
+      // ✅ Liste aktualisieren
+      setPaymentMethods(data.paymentMethods);
 
-      // Frontend State aktualisieren
-      setPaymentMethods([
-        {
-          type: mapTypeToBackend[newMethod.type],
-          details: newMethod.details,
-          cardType:
-            newMethod.type === "Credit Card" ? newMethod.cardType : undefined,
-        },
-      ]);
+      // Reset Input
       setNewMethod({ type: "Credit Card", cardType: "visa", details: "" });
-      alert("Payment method saved!");
     } catch (err) {
       console.error(err);
       alert("Fehler beim Hinzufügen!");
     }
   };
 
-  // Delete payment method (Frontend-Update, Backend nicht notwendig)
-  const handleDelete = () => {
-    setPaymentMethods([]);
-    alert("Payment method removed!");
+  // Payment Method löschen
+  const handleDelete = async (methodId) => {
+    if (!token) return;
+
+    try {
+      const res = await fetch("http://localhost:5517/cart/delete-payment", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ methodId }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) return alert(data.message || "Fehler beim Löschen!");
+
+      setPaymentMethods(data.paymentMethods || []);
+    } catch (err) {
+      console.error(err);
+      alert("Fehler beim Löschen!");
+    }
   };
 
   return (
-    <div className="max-w-lg mx-auto mt-10 bg-white/80 shadow-lg rounded-lg p-6 text-gray-800">
+    <div className="max-w-lg mx-auto mt-10 bg-white/70 shadow-lg rounded-lg p-6 text-gray-800">
       <h1 className="text-2xl font-bold mb-4">My Payment Methods</h1>
 
+      {/* Gespeicherte Methoden */}
       <div className="space-y-4 mb-6">
         {paymentMethods.length === 0 && <p>No payment methods saved.</p>}
         {paymentMethods.map((method, index) => (
           <div
-            key={index}
-            className="flex justify-between items-center bg-gray-50 p-3 rounded border"
+            key={method._id || index}
+            className="flex justify-between items-center bg-white/50 p-3 rounded border"
           >
             <div className="flex items-center gap-3">
-              <Image
+              <img
                 src={getIcon(method.type, method.cardType)}
                 alt={method.type}
-                width={32}
-                height={32}
+                width={40}
+                height={40}
+                className="object-contain"
               />
               <div>
-                <p className="font-semibold">{method.type}</p>
+                <p className="font-semibold">
+                  {method.type === "card"
+                    ? "Credit Card"
+                    : method.type.charAt(0).toUpperCase() +
+                      method.type.slice(1)}
+                </p>
                 <p className="text-sm text-gray-600">
                   {method.type === "card"
-                    ? `**** **** **** ${method.details}`
-                    : method.details}
+                    ? `**** **** **** ${method.last4}`
+                    : method.email}
                   {method.cardType ? ` (${method.cardType.toUpperCase()})` : ""}
                 </p>
               </div>
             </div>
             <button
-              onClick={() => handleDelete(index)}
+              onClick={() => handleDelete(method._id)}
               className="text-red-500 hover:text-red-700"
             >
               Remove
@@ -186,17 +176,25 @@ export default function PaymentMethodsPage() {
         ))}
       </div>
 
-      {/* Add new payment method */}
+      {/* Neue Zahlungsmethode */}
       <div className="border-t pt-4">
         <h2 className="text-lg font-semibold mb-2">Add New Payment Method</h2>
 
-        <div className="mb-3 relative" ref={dropdownRef}>
+        {/* Dropdown */}
+        <div className="mb-3 relative">
           <button
             onClick={() => setDropdownOpen(!dropdownOpen)}
             className="w-full border p-2 flex items-center justify-between rounded-md"
           >
             <span className="flex items-center gap-2">
-              <img src={getIcon(newMethod.type)} alt="" className="w-5 h-5" />
+              <img
+                src={getIcon(
+                  mapTypeToBackend[newMethod.type],
+                  newMethod.cardType
+                )}
+                alt=""
+                className="w-5 h-5 object-contain"
+              />
               {newMethod.type}
             </span>
             <span>▼</span>
@@ -213,7 +211,11 @@ export default function PaymentMethodsPage() {
                   }}
                   className="flex items-center gap-2 p-2 hover:bg-gray-100 cursor-pointer"
                 >
-                  <img src={getIcon(type, null)} alt="" className="w-5 h-5" />
+                  <img
+                    src={getIcon(mapTypeToBackend[type])}
+                    alt=""
+                    className="w-5 h-5 object-contain"
+                  />
                   {type}
                 </div>
               ))}
@@ -221,8 +223,9 @@ export default function PaymentMethodsPage() {
           )}
         </div>
 
+        {/* Credit Card Eingabe */}
         {newMethod.type === "Credit Card" && (
-          <div className="mb-3">
+          <>
             <label className="block text-sm font-medium">Card Type</label>
             <select
               value={newMethod.cardType}
@@ -237,25 +240,55 @@ export default function PaymentMethodsPage() {
                 </option>
               ))}
             </select>
-          </div>
+
+            <input
+              type="text"
+              value={newMethod.details}
+              onChange={(e) =>
+                setNewMethod({ ...newMethod, details: e.target.value })
+              }
+              placeholder="Card number"
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border mb-3"
+            />
+
+            <label className="block text-sm font-medium">
+              Expiry Date (MM/YY)
+            </label>
+            <input
+              type="text"
+              value={newMethod.expiryDate || ""}
+              onChange={(e) => {
+                let val = e.target.value.replace(/\D/g, "");
+                if (val.length > 2) {
+                  val = val.slice(0, 2) + "/" + val.slice(2, 4);
+                }
+                setNewMethod({ ...newMethod, expiryDate: val.slice(0, 5) });
+              }}
+              placeholder="MM/YY"
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border mb-3"
+            />
+          </>
         )}
 
-        <label className="block text-sm font-medium">Details</label>
-        <input
-          type="text"
-          value={newMethod.details}
-          onChange={(e) =>
-            setNewMethod({ ...newMethod, details: e.target.value })
-          }
-          placeholder={
-            newMethod.type === "Credit Card" ? "Card number" : "Account email"
-          }
-          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border mb-3"
-        />
+        {/* Alternative Methoden */}
+        {["PayPal", "Apple Pay", "Google Pay"].includes(newMethod.type) && (
+          <>
+            <label className="block text-sm font-medium">Email</label>
+            <input
+              type="email"
+              value={newMethod.details}
+              onChange={(e) =>
+                setNewMethod({ ...newMethod, details: e.target.value })
+              }
+              placeholder="Account email"
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border mb-3"
+            />
+          </>
+        )}
 
         <button
           onClick={handleAdd}
-          className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
+          className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 mr-2"
         >
           Add Payment Method
         </button>

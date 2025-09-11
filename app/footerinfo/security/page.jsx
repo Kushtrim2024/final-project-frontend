@@ -1,16 +1,28 @@
 const Security = () => {
+  const measures = [
+    "SSL-encrypted data transmission",
+    "Two-factor authentication",
+    "Secure storage of customer data",
+    "Regular security updates",
+  ];
+
   return (
-    <div className="min-h-screen container mx-auto px-4 py-12">
-      <h1 className="text-3xl font-bold mb-6">Sicherheit bei Liefrik.de</h1>
-      <p className="text-gray-700 mb-4">
-        Sicherheit hat bei Liefrik.de höchste Priorität. Wir schützen deine
-        Daten durch modernste Verschlüsselung und halten unsere Systeme stets
-        auf dem neuesten Stand.
+    <div className="container mx-auto px-4 py-12 bg-white/70 min-h-screen">
+      <h1 className="text-4xl font-bold mb-6 text-red-500">Security</h1>
+      <p className="text-gray-700 mb-8">
+        We place the highest importance on the security of our platform and your
+        data.
       </p>
-      <ul className="list-disc list-inside text-gray-700 space-y-2">
-        <li>SSL-Verschlüsselung für alle Datenübertragungen</li>
-        <li>Regelmäßige Sicherheitsupdates und Penetrationstests</li>
-        <li>Datenschutzkonformes Handling deiner Informationen</li>
+
+      <ul className="space-y-4">
+        {measures.map((item, idx) => (
+          <li
+            key={idx}
+            className="bg-white/50 p-4 rounded-lg shadow hover:shadow-lg transition"
+          >
+            {item}
+          </li>
+        ))}
       </ul>
     </div>
   );
