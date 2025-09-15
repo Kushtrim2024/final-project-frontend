@@ -610,8 +610,8 @@ function RatingsSection({ restaurantId }) {
         <span className="text-slate-500 text-sm">({total} ratings)</span>
 
         {/* Star filter */}
-        <div className="ml-auto flex items-center gap-2">
-          <span className="text-sm text-slate-600">Filter by rating:</span>
+        <div className="ml-auto flex items-center gap-2 max-[500px]:hidden">
+          <span className="text-sm text-slate-600 ">Filter by rating:</span>
           {[
             { v: 0, label: "All" },
             { v: 5, label: "5★" },
@@ -826,6 +826,9 @@ export default function RestaurantPage() {
   const [restaurant, setRestaurant] = useState(null);
   const [menu, setMenu] = useState([]);
 
+  // NEW: user-picked cover URL, stored per restaurant (highest priority)
+  const [userCover, setUserCover] = useState(null); // NEW
+
   // UI state
   const [activeCat, setActiveCat] = useState("All");
   const [page, setPage] = useState(1);
@@ -1014,15 +1017,54 @@ export default function RestaurantPage() {
   const total = +(subtotal + delivery + vat).toFixed(2);
 
   // Hero data
-  const rid = restaurant?._id || restaurant?.id || id || "unknown";
+  const rid = restaurant?._id || restaurant?.id || id || "unknown"; // restaurant id for per-restaurant key
+
+  // NEW: read ONLY the per-restaurant cover from localStorage
+  useEffect(() => {
+    if (!rid) return;
+    try {
+      const v = localStorage.getItem(`restaurant_cover_photo_${rid}`);
+      setUserCover(typeof v === "string" && /^https?:\/\//i.test(v) ? v : null);
+    } catch {
+      setUserCover(null);
+    }
+  }, [rid]); // NEW
+
+  // NEW: keep userCover in sync across tabs/windows
+  useEffect(() => {
+    function onStorage(e) {
+      if (!rid) return;
+      if (e.key === `restaurant_cover_photo_${rid}`) {
+        const v = e.newValue;
+        setUserCover(
+          typeof v === "string" && /^https?:\/\//i.test(v) ? v : null
+        );
+      }
+    }
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, [rid]); // NEW
+
   const title =
     restaurant?.restaurantName ||
     restaurant?.title ||
     restaurant?.name ||
     "Restaurant";
-  const cover = restaurant
-    ? pickBestCover(restaurant, `cover:${rid}`)
-    : seededRestaurantImage(`cover:${rid}`);
+
+  // CHANGED: cover priority -> userCover (per-restaurant) > explicit API coverPhoto > seed/guess > fallback
+  const apiCoverHttp =
+    restaurant &&
+    typeof restaurant.coverPhoto === "string" &&
+    /^https?:\/\//i.test(restaurant.coverPhoto)
+      ? restaurant.coverPhoto
+      : null;
+
+  const cover =
+    userCover || // NEW: highest priority (per-restaurant key)
+    apiCoverHttp ||
+    (restaurant ? pickBestCover(restaurant, `cover:${rid}`) : null) ||
+    seededRestaurantImage(`cover:${rid}`); // final fallback
+
   const description =
     restaurant?.description || `${title} — delicious meals and more.`;
 
@@ -1074,7 +1116,7 @@ export default function RestaurantPage() {
       selectedSize,
       selectedAddOnsDetailed: chosenAddOnsDetailed,
 
-      // 👇 EDIT modalının ihtiyaç duyduğu snapshot alanları
+      // snapshot fields used by edit modal
       availableSizes: Array.isArray(selectedItem.sizes)
         ? selectedItem.sizes.map((s) => ({
             label: s.label,
@@ -1174,10 +1216,10 @@ export default function RestaurantPage() {
               </Link>
 
               {/* Right: login or username + logout */}
-              <div className="hidden text-sm text-gray-800 bg-white/60 px-2 p-1.5 rounded-sm md:flex items-center gap-2">
+              <div className=" flex justify-between text-sm text-gray-800 bg-white/60 px-2 p-1.5 rounded-sm items-center gap-2 w-50 max-[400px]:w-20 max-[400px]:justify-center">
                 {currentUser ? (
                   <>
-                    <span className="font-semibold">
+                    <span className="font-semibold max-[400px]:hidden ">
                       Welcome, {currentUser.name || "User"}
                     </span>
                     <button
@@ -1263,19 +1305,19 @@ export default function RestaurantPage() {
 
             {/* Total product count (top of page) */}
             <div className="flex items-center w-full h-8 text-sm font-medium text-gray-700 mt-4 pl-4">
-              <div className="bg-gray-100 rounded-full px-4 py-1">
+              <div className="bg-gray-100 rounded-full px-4 py-1 max-[700px]:hidden">
                 {activeCat === "All"
                   ? `Total products: ${totalActive}`
                   : `Products in ${activeCat} : ${visibleCount}`}
               </div>
               {/* Search box */}
-              <div className="px-4 w-2/3">
+              <div className="px-4 w-4/5">
                 <input
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search products..."
-                  className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-200"
+                  className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-200 "
                 />
               </div>
             </div>
@@ -1498,7 +1540,7 @@ export default function RestaurantPage() {
         </section>
 
         {/* RIGHT: sticky cart (grouped by restaurant name) */}
-        <aside className="sticky top-4 h-[100dvh] w-full max-w-[360px] shrink-0 bg-[#12151a] px-5 pt-6 text-white">
+        <aside className="sticky top-4 h-[100dvh] w-full max-w-[360px] shrink-0 bg-[#12151a] px-5 pt-6 text-white max-[1024px]:hidden">
           <div className="rounded-xl bg-[#1b2027] p-4 ring-1 ring-white/5">
             <div className="mb-3 flex items-center justify-between gap-2">
               <div className="inline-flex items-center gap-2">
@@ -1724,16 +1766,19 @@ export default function RestaurantPage() {
                       Size
                     </div>
                     <div className="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-2">
-                      {selectedItem.sizes.map((s) => {
-                        const label = s.label || "Size";
-                        const price =
-                          typeof s.price === "number"
-                            ? s.price
-                            : Number(s.price) || 0;
+                      {(selectedItem.sizes || []).map((s, i) => {
+                        const label =
+                          (s?.label && String(s.label).trim()) ||
+                          `Size ${i + 1}`;
+                        const price = Number(s?.price) || 0;
+                        const key =
+                          s?._id ||
+                          s?.id ||
+                          `${selectedItem.id}-size-${label}-${price}-${i}`;
                         const active = selectedSize === label;
                         return (
                           <button
-                            key={label}
+                            key={key}
                             onClick={() => setSelectedSize(label)}
                             className={`rounded-lg border px-3 py-2 text-sm text-left ${
                               active
@@ -1760,15 +1805,19 @@ export default function RestaurantPage() {
                       Extras
                     </div>
                     <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      {selectedItem.addOns.map((a) => {
-                        const price =
-                          typeof a.price === "number"
-                            ? a.price
-                            : Number(a.price) || 0;
-                        const checked = selectedAddOns.includes(a.name);
+                      {(selectedItem.addOns || []).map((a, i) => {
+                        const name =
+                          (a?.name && String(a.name).trim()) ||
+                          `Extra ${i + 1}`;
+                        const price = Number(a?.price) || 0;
+                        const key =
+                          a?._id ||
+                          a?.id ||
+                          `${selectedItem.id}-addon-${name}-${price}-${i}`;
+                        const checked = selectedAddOns.includes(name);
                         return (
                           <label
-                            key={a.name}
+                            key={key}
                             className={`flex items-center justify-between rounded-lg border px-3 py-2 text-sm ${
                               checked
                                 ? "border-slate-300 bg-slate-50"
@@ -1782,12 +1831,12 @@ export default function RestaurantPage() {
                                 onChange={(e) => {
                                   setSelectedAddOns((prev) =>
                                     e.target.checked
-                                      ? [...prev, a.name]
-                                      : prev.filter((x) => x !== a.name)
+                                      ? [...prev, name]
+                                      : prev.filter((x) => x !== name)
                                   );
                                 }}
                               />
-                              <span>{a.name}</span>
+                              <span>{name}</span>
                             </span>
                             <span className="text-slate-700">
                               € {price.toFixed(2)}

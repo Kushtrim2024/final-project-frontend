@@ -1,707 +1,718 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
-
-/* ============= API-Root: über Next-Rewrite /api → http://localhost:5517 ============= */
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_ORDERS || ""; // leer = relativer Proxy
-const ROOT = API_BASE ? API_BASE : "/api"; // z.B. "/api"
-
-/* ================= Helpers ================= */
-
-// Token aus LocalStorage lesen (Owner & generische Keys)
-const readTokenFromStorage = () => {
-  if (typeof window === "undefined") return "";
-  const keys = [
-    "ownerToken",
-    "adminToken",
-    "token",
-    "accessToken",
-    "jwt",
-    "authToken",
-  ];
-  for (const k of keys) {
-    const v = localStorage.getItem(k);
-    if (v && v.trim()) return v.trim();
-  }
-  return "";
-};
-
-// Erstbeste Array-Liste aus beliebigen Response-Formaten ziehen
-const pickFirstArray = (obj) => {
-  if (Array.isArray(obj)) return obj;
-  if (obj && typeof obj === "object") {
-    const preferred = ["orders", "items", "data", "results", "list"];
-    for (const k of preferred) {
-      if (Array.isArray(obj?.[k])) return obj[k];
-      if (Array.isArray(obj?.[k]?.items)) return obj[k].items;
-    }
-    for (const v of Object.values(obj)) {
-      if (Array.isArray(v)) return v;
-      if (v && typeof v === "object" && Array.isArray(v.items)) return v.items;
-    }
-  }
-  return [];
-};
-
-const safeText = (v) => {
-  if (v == null) return "";
-  const t = typeof v;
-  if (t === "string" || t === "number" || t === "boolean") return String(v);
-  if (t === "object") {
-    return (
-      v.name ||
-      v.fullName ||
-      v.restaurantName ||
-      v.email ||
-      v.title ||
-      v._id ||
-      JSON.stringify(v)
-    );
-  }
-  return String(v);
-};
-
-const formatAddress = (a) =>
-  typeof a === "string"
-    ? a
-    : [a?.street, a?.city, a?.postalCode, a?.country]
-        .filter(Boolean)
-        .join(", ");
-
-const formatDate = (iso) => {
-  try {
-    return new Date(iso).toLocaleDateString("en-CA"); // YYYY-MM-DD
-  } catch {
-    return iso || "";
-  }
-};
-
-const getStatusBadge = (status) => {
-  const s = String(status || "").toLowerCase();
-  if (s.includes("pending")) return "bg-gray-100 text-gray-700";
-  if (s.includes("confirm")) return "bg-blue-100 text-blue-700";
-  if (s.includes("prepar")) return "bg-yellow-100 text-yellow-700";
-  if (s.includes("ready")) return "bg-indigo-100 text-indigo-700";
-  if (s.includes("out for delivery")) return "bg-purple-100 text-purple-700";
-  if (s.includes("deliver")) return "bg-green-100 text-green-700";
-  if (s.includes("cancel")) return "bg-red-100 text-red-700";
-  return "bg-gray-100 text-gray-700";
-};
-
-const apiToUiStatus = (s) => {
-  const x = String(s || "").toLowerCase();
-  switch (x) {
-    case "pending":
-      return "Pending";
-    case "confirmed":
-      return "Confirmed";
-    case "preparing":
-      return "Preparing";
-    case "ready":
-      return "Ready for Pickup";
-    case "out_for_delivery":
-      return "Out for Delivery";
-    case "delivered":
-      return "Delivered";
-    case "cancelled":
-    case "canceled":
-      return "Cancelled";
-    default:
-      return "Pending";
-  }
-};
-
-/* =============== Login Box =============== */
-function LoginBox({ onSuccess }) {
-  const [role, setRole] = useState("owner");
-  const [email, setEmail] = useState("");
-  const [pw, setPw] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState("");
-
-  const endpoints = {
-    owner: `${ROOT}/owner/login`,
-    user: `${ROOT}/user/login`,
-    admin: `${ROOT}/admin/login`,
-  };
-
-  const doLogin = async () => {
-    setBusy(true);
-    setMsg("");
-    try {
-      const path = endpoints[role] || endpoints.owner;
-      const res = await fetch(path, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include", // Cookie-Login unterstützen
-        body: JSON.stringify({ email, password: pw }),
-      });
-
-      const ctype = res.headers.get("content-type") || "";
-      const isJson = ctype.includes("application/json");
-      const data = isJson ? await res.json() : {};
-
-      if (!res.ok) {
-        const serverMsg = data?.message || data?.error || `HTTP ${res.status}`;
-        throw new Error(serverMsg);
-      }
-
-      // Token, falls vorhanden
-      const token =
-        data?.token ||
-        data?.accessToken ||
-        data?.jwt ||
-        data?.data?.token ||
-        data?.result?.token ||
-        "";
-
-      if (token) localStorage.setItem("ownerToken", token);
-
-      setMsg("Login erfolgreich.");
-      onSuccess(token || null); // Orders neu laden
-    } catch (e) {
-      setMsg(e.message || "Login fehlgeschlagen");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const clearTokens = () => {
-    [
-      "ownerToken",
-      "adminToken",
-      "token",
-      "accessToken",
-      "jwt",
-      "authToken",
-      "restaurantToken",
-    ].forEach((k) => localStorage.removeItem(k));
-    setMsg("Token gelöscht.");
-    onSuccess(null);
-  };
-
-  return (
-    <div className="mb-4 rounded-lg border border-gray-200 p-4 bg-white">
-      <div className="flex items-center justify-between gap-2 mb-3">
-        <h2 className="text-base font-semibold text-gray-900">
-          Login (Owner/User/Admin)
-        </h2>
-        <select
-          className="border rounded px-2 py-1 text-sm"
-          value={role}
-          onChange={(e) => setRole(e.target.value)}
-        >
-          <option value="owner">owner</option>
-          <option value="user">user</option>
-          <option value="admin">admin</option>
-        </select>
-      </div>
-
-      <div className="grid sm:grid-cols-2 gap-2">
-        <input
-          className="border rounded px-3 py-2 text-sm"
-          placeholder="E-Mail"
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-        />
-        <input
-          className="border rounded px-3 py-2 text-sm"
-          placeholder="Passwort"
-          type="password"
-          value={pw}
-          onChange={(e) => setPw(e.target.value)}
-        />
-      </div>
-
-      <div className="flex items-center gap-2 mt-3">
-        <button
-          onClick={doLogin}
-          disabled={busy || !email || !pw}
-          className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm px-3 py-2 rounded"
-        >
-          {busy ? "Einloggen…" : "Einloggen"}
-        </button>
-        <button
-          onClick={clearTokens}
-          className="bg-gray-200 hover:bg-gray-300 text-gray-800 text-sm px-3 py-2 rounded"
-        >
-          Token löschen
-        </button>
-      </div>
-
-      {msg && <div className="mt-2 text-sm text-gray-700">{msg}</div>}
-
-      <div className="mt-1 text-xs text-gray-500">
-        Hinweis: Wenn euer Backend nur ein Cookie setzt (kein Token im Body),
-        reicht der Login trotzdem – Requests senden{" "}
-        <code>credentials: "include"</code>.
-      </div>
-    </div>
-  );
-}
-
-/* ================= Page ================= */
+import { useEffect, useMemo, useState, Fragment } from "react";
 
 export default function OrderManagementPage() {
+  // ---------- State ----------
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [err, setErr] = useState("");
-  const [token, setToken] = useState("");
-  const [tokenChecked, setTokenChecked] = useState(false);
-
-  // Modal
-  const [selectedOrder, setSelectedOrder] = useState(null);
-  const [details, setDetails] = useState(null);
-  const [modalType, setModalType] = useState(null);
+  const [error, setError] = useState("");
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [toast, setToast] = useState(null);
 
   // Pagination
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(6);
-  const clamp = (n, min, max) => Math.min(Math.max(n, min), max);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(4); // 4, 6, 8, 10
 
-  /* ===== Orders laden ===== */
-  const fetchOrders = async (tk) => {
+  // Inline details (between rows)
+  const [expandedOrderId, setExpandedOrderId] = useState(null);
+  const [detailsCache, setDetailsCache] = useState({}); // { [orderId]: detail }
+  const [detailsLoading, setDetailsLoading] = useState(false);
+  const [detailsError, setDetailsError] = useState("");
+
+  // ---------- Config & helpers ----------
+  const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5517";
+
+  // Owner endpoints
+  const ORDERS_ENDPOINTS = {
+    list: "/owner/restaurants/my-restaurant/orders", // GET
+    updateStatus: "/owner/restaurants/my-restaurant/orders/update-status", // PUT { orderId, newStatus }
+    remove: (id) => `/owner/restaurants/my-restaurant/orders/${id}`, // DELETE
+    details: (id) => `/owner/restaurants/my-restaurant/orders/details/${id}`, // GET
+  };
+
+  function getAuthToken() {
+    if (typeof window === "undefined") return null;
+    const fromLocal =
+      localStorage.getItem("token") ||
+      localStorage.getItem("accessToken") ||
+      localStorage.getItem("jwt");
+    if (fromLocal) return fromLocal;
+    const m = document.cookie.match(
+      /(?:^|; )(?:token|accessToken|jwt)=([^;]+)/
+    );
+    return m ? decodeURIComponent(m[1]) : null;
+  }
+
+  function authHeaders() {
+    const token = getAuthToken();
+    return token
+      ? { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }
+      : { "Content-Type": "application/json" };
+  }
+
+  const STATUS_OPTIONS = [
+    "pending",
+    "confirmed",
+    "preparing",
+    "out_for_delivery",
+    "ready",
+    "delivered",
+    "cancelled",
+  ];
+
+  function showToast(text, type = "success") {
+    setToast({ text, type });
+    setTimeout(() => setToast(null), 2600);
+  }
+
+  // ---------- Fetch list ----------
+  async function fetchOrders() {
     setLoading(true);
-    setErr("");
+    setError("");
     try {
-      const res = await fetch(`${ROOT}/orders`, {
-        headers: tk ? { Authorization: `Bearer ${tk}` } : {},
-        credentials: "include",
+      const res = await fetch(`${API_BASE}${ORDERS_ENDPOINTS.list}`, {
+        headers: authHeaders(),
         cache: "no-store",
       });
-
-      const text = await res.text();
-      let data;
-      try {
-        data = text ? JSON.parse(text) : [];
-      } catch {
-        data = [];
-      }
-
       if (!res.ok) {
-        if (res.status === 401)
-          throw new Error(
-            "401: Nicht eingeloggt (Token/Cookie fehlt oder abgelaufen)."
-          );
-        if (res.status === 403) {
-          const msg =
-            (Array.isArray(data) ? null : data?.message) || text || "Forbidden";
-          throw new Error(`403: ${msg}`);
-        }
-        if (res.status === 404)
-          throw new Error("404: Pfad /orders nicht gefunden (Backend prüfen).");
-        throw new Error(
-          (!Array.isArray(data) && data?.message) ||
-            text ||
-            `HTTP ${res.status}`
-        );
+        const t = await res.text();
+        throw new Error(t || `Failed to load orders (${res.status})`);
       }
-
-      const list = pickFirstArray(data);
-      const mapped = list.map((o, i) => {
-        const customerObj = o?.customer || o?.user;
-        const restaurantObj = o?.restaurant;
-        return {
-          id: o?._id || o?.id || `row-${i}`,
-          customer: safeText(
-            o?.customerName ?? customerObj ?? o?.userName ?? o?.userEmail
-          ),
-          restaurant: safeText(
-            o?.restaurantName ?? restaurantObj ?? o?.restaurantId
-          ),
-          date: formatDate(
-            o?.createdAt ||
-              o?.orderTime ||
-              o?.updatedAt ||
-              new Date().toISOString()
-          ),
-          status: apiToUiStatus(o?.status || o?.orderStatus || "pending"),
-        };
-      });
-      setOrders(mapped);
-    } catch (e) {
-      setErr(e.message || "Orders could not be loaded");
-      setOrders([]);
+      const data = await res.json();
+      const normalized = Array.isArray(data) ? data : data.orders || [];
+      setOrders(normalized);
+      setCurrentPage(1);
+    } catch (err) {
+      setError(err.message || "An error has occurred.");
     } finally {
       setLoading(false);
     }
-  };
+  }
 
-  // Token laden + auf Änderungen reagieren
   useEffect(() => {
-    const t = readTokenFromStorage();
-    if (t) setToken(t);
-    setTokenChecked(true);
-    const onStorage = () => setToken(readTokenFromStorage());
-    const onFocus = onStorage;
-    if (typeof window !== "undefined") {
-      window.addEventListener("storage", onStorage);
-      window.addEventListener("focus", onFocus);
-      document.addEventListener("visibilitychange", onFocus);
-    }
-    return () => {
-      if (typeof window !== "undefined") {
-        window.removeEventListener("storage", onStorage);
-        window.removeEventListener("focus", onFocus);
-        document.removeEventListener("visibilitychange", onFocus);
-      }
-    };
+    fetchOrders();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Laden sobald Token geprüft
+  // ---------- Filter + Pagination ----------
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return orders.filter((o) => {
+      const matchesStatus =
+        statusFilter === "all" ||
+        (o.status || "").toLowerCase() === statusFilter;
+
+      if (!q) return matchesStatus;
+
+      const id = o._id || o.id || "";
+      const customer =
+        o.user?.name ||
+        o.user?.fullName ||
+        o.customerName ||
+        o.userId?.name ||
+        "";
+      const restaurantName = o.restaurantId?.name || o.restaurant?.name || "";
+      const restaurantNames = Array.isArray(o.restaurants)
+        ? o.restaurants.map((r) => r?.name || r).join(", ")
+        : restaurantName;
+
+      const itemsArr = Array.isArray(o.items) ? o.items : o.orderItems || [];
+      const itemsText = itemsArr
+        .map(
+          (it) =>
+            it?.name ||
+            it?.title ||
+            it?.menuItem?.name ||
+            `${it?.quantity || 1}x item`
+        )
+        .join(", ");
+
+      const blob =
+        `${id} ${customer} ${restaurantNames} ${itemsText}`.toLowerCase();
+      return matchesStatus && blob.includes(q);
+    });
+  }, [orders, search, statusFilter]);
+
   useEffect(() => {
-    if (!tokenChecked) return;
-    fetchOrders(token || "");
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tokenChecked, token]);
+    setCurrentPage(1);
+    setExpandedOrderId(null); // collapse details when filters change
+  }, [search, statusFilter, pageSize]);
 
-  // Paging ableiten
-  const totalItems = orders.length;
-  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
-  useEffect(() => {
-    setPage((p) => clamp(p, 1, totalPages));
-  }, [totalItems, pageSize]);
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const start = (currentPage - 1) * pageSize;
+  const end = start + pageSize;
+  const pageRows = filtered.slice(start, end);
 
-  const start = (page - 1) * pageSize;
-  const pageRows = useMemo(
-    () => orders.slice(start, start + pageSize),
-    [orders, start, pageSize]
-  );
+  function buildPaginationModel(current, total) {
+    if (total <= 1) return [];
+    if (total <= 3) return Array.from({ length: total }, (_, i) => i + 1);
+    const first = 1;
+    const last = total;
+    if (current <= 2) return [1, 2, "…", last];
+    if (current >= total - 1) return [1, "…", total - 1, total];
+    return [first, "…", current, "…", last];
+  }
 
-  // Details
-  const openDetailsModal = async (order) => {
-    setSelectedOrder(order);
-    setModalType("details");
-    setDetails(null);
+  // ---------- Mutations ----------
+  async function updateStatus(orderId, newStatus) {
     try {
-      const res = await fetch(`${ROOT}/orders/details/${order.id}`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-        credentials: "include",
-        cache: "no-store",
+      const res = await fetch(`${API_BASE}${ORDERS_ENDPOINTS.updateStatus}`, {
+        method: "PUT",
+        headers: authHeaders(),
+        body: JSON.stringify({ orderId, newStatus }),
       });
-      const text = await res.text();
-      let data;
-      try {
-        data = text ? JSON.parse(text) : {};
-      } catch {
-        data = {};
-      }
       if (!res.ok) {
-        if (res.status === 403) {
-          const msg = data?.message || text || "Forbidden";
-          throw new Error(`403: ${msg}`);
-        }
-        throw new Error(data?.message || text || `HTTP ${res.status}`);
+        const t = await res.text();
+        throw new Error(t || `Status could not be updated (${res.status}).`);
       }
-      setDetails(data);
-    } catch (e) {
-      setDetails({ error: e.message || "Details could not be loaded" });
+      // Update list
+      setOrders((prev) =>
+        prev.map((o) =>
+          o._id === orderId || o.id === orderId
+            ? {
+                ...o,
+                status: newStatus,
+                items: Array.isArray(o.items)
+                  ? o.items.map((it) => ({ ...it, status: newStatus }))
+                  : o.items,
+              }
+            : o
+        )
+      );
+      // Update details cache if visible
+      setDetailsCache((prev) => {
+        if (!prev[orderId]) return prev;
+        return { ...prev, [orderId]: { ...prev[orderId], status: newStatus } };
+      });
+      showToast("Order status updated.");
+    } catch (err) {
+      showToast(err.message || "Update error", "error");
     }
-  };
+  }
 
-  const closeModal = () => {
-    setSelectedOrder(null);
-    setModalType(null);
-    setDetails(null);
-  };
+  async function removeOrder(orderId) {
+    if (!confirm("Are you sure you want to delete this order?")) return;
+    try {
+      const res = await fetch(
+        `${API_BASE}${ORDERS_ENDPOINTS.remove(orderId)}`,
+        {
+          method: "DELETE",
+          headers: authHeaders(),
+        }
+      );
+      if (!res.ok) {
+        const t = await res.text();
+        throw new Error(t || `Could not delete the order (${res.status}).`);
+      }
+      setOrders((prev) => prev.filter((o) => (o._id || o.id) !== orderId));
+      setExpandedOrderId((prev) => (prev === orderId ? null : prev));
+      showToast("The order has been deleted.");
+    } catch (err) {
+      showToast(err.message || "Delete error", "error");
+    }
+  }
 
-  /* ===== UI ===== */
-  if (!tokenChecked) return <div className="p-4">Checking…</div>;
-  if (loading) return <div className="p-4">Loading…</div>;
+  async function toggleDetails(orderId) {
+    if (expandedOrderId === orderId) {
+      setExpandedOrderId(null);
+      setDetailsError("");
+      return;
+    }
+    setExpandedOrderId(orderId);
+    setDetailsError("");
 
-  return (
-    <div className="min-h-screen ">
-      <h1 className="text-3xl font-bold text-gray-900 mb-4 max-[1200px]:text-[16px]">
-        Owner – Order Management
-      </h1>
+    if (detailsCache[orderId]) return;
 
-      {/* Login/Registrieren anzeigen, wenn kein Token oder 401 */}
-      {(!token || /401/.test(err)) && (
-        <LoginBox
-          onSuccess={(tk) => {
-            if (tk) setToken(tk); // JWT merken, falls vorhanden
-            fetchOrders(tk || ""); // Orders neu laden (JWT oder Cookie)
-          }}
-        />
-      )}
+    setDetailsLoading(true);
+    try {
+      const res = await fetch(
+        `${API_BASE}${ORDERS_ENDPOINTS.details(orderId)}`,
+        {
+          headers: authHeaders(),
+        }
+      );
 
-      {err && (
-        <div className="p-3 mb-4 rounded bg-red-50 text-red-700 border border-red-200">
-          {err}
-        </div>
-      )}
+      if (res.ok) {
+        const detail = await res.json();
+        setDetailsCache((prev) => ({
+          ...prev,
+          [orderId]: detail?.order || detail,
+        }));
+      } else if (res.status === 403 || res.status === 404) {
+        // Fallback to local row data, mark as limited
+        const local = orders.find((o) => (o._id || o.id) === orderId);
+        if (local) {
+          setDetailsCache((prev) => ({
+            ...prev,
+            [orderId]: { ...local, _limited: true },
+          }));
+        } else {
+          const t = await res.text();
+          throw new Error(t || `Failed to load details (${res.status})`);
+        }
+      } else {
+        const t = await res.text();
+        throw new Error(t || `Failed to load details (${res.status})`);
+      }
+    } catch (err) {
+      setDetailsError(err.message || "Failed to load details.");
+    } finally {
+      setDetailsLoading(false);
+    }
+  }
 
-      <div className="flex items-center gap-2 mb-4">
-        <label className="text-sm text-gray-800">Rows :</label>
-        <select
-          className="border rounded px-2 py-1"
-          value={pageSize}
-          onChange={(e) => {
-            setPageSize(Number(e.target.value));
-            setPage(1);
-          }}
-        >
-          {[6, 12, 24, 48].map((n) => (
-            <option key={n} value={n}>
-              {n}
-            </option>
-          ))}
-        </select>
-        <div className="text-sm text-gray-800 ml-auto">
-          Page <span className="font-semibold">{page}</span>&nbsp;/&nbsp;
-          {totalPages}&nbsp;•&nbsp;
-          <span className="font-semibold">{totalItems}</span>&nbsp;items
-        </div>
-      </div>
+  // ---------- Inline details renderer ----------
+  function renderDetailsRow(orderId, colSpan) {
+    if (expandedOrderId !== orderId) return null;
+    const detail = detailsCache[orderId];
 
-      {/* TABLE */}
-      <div className="overflow-x-auto shadow-md rounded-lg border border-gray-200 bg-white">
-        <table className="min-w-full text-sm text-left text-gray-900">
-          <thead className="bg-gray-100 text-base font-semibold max-[1200px]:text-[14px]">
-            <tr>
-              <th className="px-6 py-4 border-b">Order ID</th>
-              <th className="px-6 py-4 border-b">Customer</th>
-              <th className="px-6 py-4 border-b">Restaurant</th>
-              <th className="px-6 py-4 border-b">Date</th>
-              <th className="px-6 py-4 border-b">Status</th>
-              <th className="px-6 py-4 border-b">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-200">
-            {pageRows.length === 0 ? (
-              <tr>
-                <td className="px-6 py-8 text-center text-gray-600" colSpan={6}>
-                  No orders.
-                </td>
-              </tr>
-            ) : (
-              pageRows.map((order) => (
-                <tr
-                  key={order.id}
-                  className="hover:bg-gray-50 transition max-[1200px]:text-[14px]"
-                >
-                  <td className="px-6 py-4">{safeText(order.id)}</td>
-                  <td className="px-6 py-4">{safeText(order.customer)}</td>
-                  <td className="px-6 py-4">{safeText(order.restaurant)}</td>
-                  <td className="px-6 py-4">{safeText(order.date)}</td>
-                  <td className="px-6 py-4">
-                    <span
-                      className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${getStatusBadge(
-                        order.status
-                      )}`}
-                    >
-                      {safeText(order.status)}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => openDetailsModal(order)}
-                      className="bg-gray-200 hover:bg-gray-300 text-gray-800 text-xs font-medium px-3 py-1 rounded"
-                    >
-                      Details
-                    </button>
-                    {/* Kein Update: Backend-Route PUT /orders/:id erlaubt evtl. nicht Owner.
-                        Wenn gewünscht, später leicht ergänzen. */}
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+    return (
+      <tr key={`${orderId}-details`}>
+        <td colSpan={colSpan} className="bg-gray-50 px-4 py-4">
+          {detailsLoading && (
+            <div className="text-sm text-gray-600">Loading order details…</div>
+          )}
 
-      {/* PAGINATION */}
-      <PaginationControls
-        page={page}
-        setPage={setPage}
-        pageSize={pageSize}
-        setPageSize={setPageSize}
-        totalItems={totalItems}
-      />
-
-      {/* Modal */}
-      {selectedOrder && modalType === "details" && (
-        <div className="fixed inset-0 bg-black bg-opacity-40 flex justify-center items-center z-50">
-          <div className="bg-white rounded-lg shadow-lg w-full max-w-md p-6">
-            <h2 className="text-xl font-bold mb-4 text-gray-900">
-              Order Details
-            </h2>
-            {details?.error ? (
-              <div className="text-red-600">{details.error}</div>
-            ) : !details ? (
-              <div className="text-gray-600">Loading…</div>
-            ) : (
-              <div className="text-gray-800 space-y-2">
-                <p>
-                  <strong>Order ID:</strong> {safeText(selectedOrder.id)}
-                </p>
-                <p>
-                  <strong>Customer:</strong>{" "}
-                  {safeText(
-                    details.customer ||
-                      details.customerName ||
-                      selectedOrder.customer
-                  )}
-                </p>
-                <p>
-                  <strong>Restaurant:</strong>{" "}
-                  {safeText(
-                    details.restaurant ||
-                      details.restaurant?.restaurantName ||
-                      details.restaurantName ||
-                      selectedOrder.restaurant
-                  )}
-                </p>
-                <p>
-                  <strong>Date:</strong>{" "}
-                  {safeText(
-                    formatDate(
-                      details.createdAt ||
-                        details.orderTime ||
-                        selectedOrder.date
-                    )
-                  )}
-                </p>
-                <p>
-                  <strong>Status:</strong>{" "}
-                  {safeText(apiToUiStatus(details.status || "pending"))}
-                </p>
-
-                {details.phone && (
-                  <p>
-                    <strong>Phone:</strong> {safeText(details.phone)}
-                  </p>
-                )}
-                {details.address && (
-                  <p>
-                    <strong>Address:</strong>{" "}
-                    {safeText(formatAddress(details.address))}
-                  </p>
-                )}
-
-                {Array.isArray(details.items) && details.items.length > 0 && (
-                  <div className="pt-2">
-                    <strong>Items:</strong>
-                    <ul className="list-disc ml-5">
-                      {details.items.map((it, idx) => (
-                        <li key={idx}>
-                          {safeText(it?.name || it?.productId)} ×{" "}
-                          {safeText(it?.quantity)}{" "}
-                          {it?.total != null
-                            ? `— ${safeText(it.total)}`
-                            : it?.price != null
-                            ? `— ${safeText(it.price)}`
-                            : ""}
-                        </li>
-                      ))}
-                    </ul>
+          {!detailsLoading && !detailsError && detail && (
+            <div className="space-y-4">
+              {/* Summary cards */}
+              <div className="grid gap-3 md:grid-cols-3">
+                <div className="rounded-xl border bg-white p-3">
+                  <div className="text-xs text-gray-500">Order ID</div>
+                  <div className="font-medium">{detail._id || "-"}</div>
+                </div>
+                <div className="rounded-xl border bg-white p-3">
+                  <div className="text-xs text-gray-500">Status</div>
+                  <div className="font-medium capitalize">
+                    {detail.status || "-"}
                   </div>
-                )}
-
-                {!details.items &&
-                  Array.isArray(details.cart) &&
-                  details.cart.length > 0 && (
-                    <div className="pt-2">
-                      <strong>Items:</strong>
-                      <ul className="list-disc ml-5">
-                        {details.cart.map((it, idx) => (
-                          <li key={idx}>
-                            {safeText(it?.menuItem?.name || it?.menuItemId)} ×{" "}
-                            {safeText(it?.quantity)}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
+                </div>
+                <div className="rounded-xl border bg-white p-3">
+                  <div className="text-xs text-gray-500">Customer</div>
+                  <div className="font-medium">
+                    {detail.customerName || detail.userId?.name || "-"}
+                  </div>
+                </div>
               </div>
-            )}
 
-            <div className="mt-4 flex justify-end">
-              <button
-                type="button"
-                onClick={closeModal}
-                className="bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded"
-              >
-                Close
-              </button>
+              {/* Items table */}
+              <div className="rounded-2xl border bg-white">
+                <div className="border-b px-4 py-3 font-medium">Items</div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50 text-gray-600">
+                      <tr>
+                        <th className="px-4 py-2 text-left">Name</th>
+                        <th className="px-4 py-2 text-left">Size</th>
+                        <th className="px-4 py-2 text-left">Add-ons</th>
+                        <th className="px-4 py-2 text-right">Qty</th>
+                        <th className="px-4 py-2 text-right">Unit</th>
+                        <th className="px-4 py-2 text-right">Subtotal</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(detail.items || []).map((it, idx) => {
+                        const name =
+                          it.name || it.title || it.productId?.name || "Item";
+                        const size =
+                          it.size ||
+                          it.sizeLabel ||
+                          (typeof it.selectedSize === "string"
+                            ? it.selectedSize
+                            : "");
+                        const addOnList = Array.isArray(it.addOns)
+                          ? it.addOns
+                          : [];
+                        const addOnNames = addOnList
+                          .map((a) => {
+                            if (!a) return null;
+                            if (typeof a === "string") return a; // fallback to id string
+                            return (
+                              a.name || a.label || a.title || a._id || null
+                            );
+                          })
+                          .filter(Boolean)
+                          .join(", ");
+                        const qty = it.quantity || 1;
+                        const unit =
+                          typeof it.price === "number"
+                            ? it.price
+                            : typeof it.unitPrice === "number"
+                            ? it.unitPrice
+                            : null;
+                        const subtotal =
+                          typeof it.total === "number"
+                            ? it.total
+                            : unit != null
+                            ? unit * qty
+                            : null;
+
+                        return (
+                          <tr key={`item-${idx}`} className="border-t">
+                            <td className="px-4 py-2">{name}</td>
+                            <td className="px-4 py-2">{size || "-"}</td>
+                            <td className="px-4 py-2">
+                              {addOnNames ||
+                                (addOnList.length
+                                  ? `${addOnList.length} add-on(s)`
+                                  : "-")}
+                            </td>
+                            <td className="px-4 py-2 text-right">{qty}</td>
+                            <td className="px-4 py-2 text-right">
+                              {unit != null ? `${unit.toFixed(2)} €` : "-"}
+                            </td>
+                            <td className="px-4 py-2 text-right">
+                              {subtotal != null
+                                ? `${subtotal.toFixed(2)} €`
+                                : "-"}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Total */}
+                <div className="flex flex-wrap items-center justify-end gap-3 border-t px-4 py-3 text-sm">
+                  <div className="text-gray-600">Total:</div>
+                  <div className="font-semibold">
+                    {typeof detail.total === "number"
+                      ? `${detail.total.toFixed(2)} €`
+                      : detail.totalAmount ??
+                        detail.amount ??
+                        detail.price ??
+                        detail.totalPrice ??
+                        "-"}
+                  </div>
+                </div>
+              </div>
+
+              {/* Extra info */}
+              <div className="grid gap-3 md:grid-cols-3">
+                <div className="rounded-xl border bg-white p-3">
+                  <div className="text-xs text-gray-500">Payment</div>
+                  <div className="font-medium">
+                    {detail.paymentMethod || "-"}
+                  </div>
+                </div>
+                <div className="rounded-xl border bg-white p-3">
+                  <div className="text-xs text-gray-500">Delivery</div>
+                  <div className="font-medium">
+                    {detail.deliveryType || "-"}
+                  </div>
+                </div>
+                <div className="rounded-xl border bg-white p-3">
+                  <div className="text-xs text-gray-500">Date</div>
+                  <div className="font-medium">
+                    {detail.createdAt
+                      ? new Date(detail.createdAt).toLocaleString()
+                      : "-"}
+                  </div>
+                </div>
+              </div>
             </div>
-          </div>
+          )}
+        </td>
+      </tr>
+    );
+  }
+
+  // ---------- Pagination Bar ----------
+  const PaginationBar = () =>
+    totalPages > 1 ? (
+      <div className="mt-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div className="text-sm text-gray-600">
+          Showing{" "}
+          <span className="font-medium">{filtered.length ? start + 1 : 0}</span>{" "}
+          to{" "}
+          <span className="font-medium">{Math.min(end, filtered.length)}</span>{" "}
+          of <span className="font-medium">{filtered.length}</span> orders
         </div>
-      )}
-    </div>
-  );
-}
 
-/* ===== Pagination Controls  ===== */
-function PaginationControls({
-  page,
-  setPage,
-  pageSize,
-  setPageSize,
-  totalItems,
-}) {
-  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+        <nav className="flex items-center gap-2" aria-label="Pagination">
+          <button
+            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+            disabled={currentPage === 1}
+            className="rounded-xl border px-3 py-1.5 text-sm disabled:opacity-40"
+          >
+            Prev
+          </button>
 
-  const getPageButtons = (current, total) => {
-    if (total <= 1) return [1];
-    current = Math.max(1, Math.min(current, total));
-    if (total === 2) return [1, 2];
-    if (total === 3) return Array.from(new Set([1, current, total]));
-    if (current === 1 || current === total) return [1, "…", total];
-
-    const out = [1];
-    if (current > 2) out.push("…");
-    out.push(current);
-    if (current < total - 1) out.push("…");
-    out.push(total);
-    return out;
-  };
-
-  return (
-    <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-white mt-4 rounded-lg">
-      <div className="flex items-center gap-2 text-gray-800">
-        <button
-          type="button"
-          className="px-2 py-1 border rounded disabled:opacity-50"
-          onClick={() => setPage((p) => Math.max(1, p - 1))}
-          disabled={page === 1}
-        >
-          Prev
-        </button>
-
-        <div className="flex items-center gap-1">
-          {getPageButtons(page, totalPages).map((n, idx) =>
-            n === "…" ? (
-              <span key={`ellipsis-${idx}`} className="px-2 select-none">
+          {buildPaginationModel(currentPage, totalPages).map((token, i) =>
+            token === "…" ? (
+              <span key={`e-${i}`} className="px-2 text-gray-500">
                 …
               </span>
             ) : (
               <button
-                key={`pg-${n}`}
-                type="button"
-                aria-current={page === n ? "page" : undefined}
-                className={`px-3 py-1 border rounded ${
-                  page === n ? "bg-gray-800 text-white" : "hover:bg-gray-100"
+                key={`p-${token}`}
+                onClick={() => setCurrentPage(token)}
+                className={`rounded-xl px-3 py-1.5 text-sm border ${
+                  currentPage === token
+                    ? "bg-gray-900 text-white border-gray-900"
+                    : "bg-white hover:bg-gray-50"
                 }`}
-                onClick={() => setPage(n)}
               >
-                {n}
+                {token}
               </button>
             )
           )}
-        </div>
 
-        <button
-          type="button"
-          className="px-2 py-1 border rounded disabled:opacity-50"
-          onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-          disabled={page === totalPages}
-        >
-          Next
-        </button>
+          <button
+            onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+            disabled={currentPage === totalPages}
+            className="rounded-xl border px-3 py-1.5 text-sm disabled:opacity-40"
+          >
+            Next
+          </button>
+        </nav>
       </div>
+    ) : null;
+
+  // ---------- UI ----------
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <div className="sticky top-0 z-10 backdrop-blur bg-white/80 border-b">
+        <div className="max-w-7xl mx-auto px-4 py-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight">
+              Order Management
+            </h1>
+            <p className="text-sm text-gray-500">
+              List, edit, and delete orders from the restaurant you are logged
+              into.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={fetchOrders}
+              className="px-3 py-2 rounded-xl bg-gray-900 text-white hover:bg-gray-800 transition shadow"
+            >
+              Refresh
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Controls */}
+      <div className="max-w-7xl mx-auto px-4 py-4">
+        <div className="grid gap-3 md:grid-cols-3">
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search: customer, item, orderId…"
+            className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gray-900"
+          />
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gray-900"
+          >
+            <option value="all">All statuses</option>
+            {STATUS_OPTIONS.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
+
+          {/* Rows per page */}
+          <div className="flex items-center justify-between rounded-xl border border-gray-200 bg-white px-3 py-2">
+            <span className="text-sm text-gray-600">Rows:</span>
+            <select
+              aria-label="Rows per page"
+              value={pageSize}
+              onChange={(e) => setPageSize(Number(e.target.value))}
+              className="ml-2 rounded-lg border border-gray-200 bg-white px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
+            >
+              {[4, 6, 8, 10].map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+      </div>
+
+      {/* TOP Pagination */}
+      <div className="max-w-7xl mx-auto px-4">
+        <PaginationBar />
+      </div>
+
+      {/* Content */}
+      <div className="max-w-7xl mx-auto px-4 pb-24">
+        {error && (
+          <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3 text-red-700">
+            {error}
+          </div>
+        )}
+
+        {loading ? (
+          <div className="grid gap-3">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div
+                key={i}
+                className="h-20 animate-pulse rounded-xl bg-gray-200"
+              />
+            ))}
+          </div>
+        ) : (
+          <>
+            <div className="overflow-x-auto rounded-2xl border border-gray-200 bg-white shadow-sm">
+              <table className="min-w-full text-sm">
+                <thead className="bg-gray-50 text-gray-600">
+                  <tr>
+                    <th className="px-4 py-3 text-left font-medium">Order</th>
+                    <th className="px-4 py-3 text-left font-medium">
+                      Customer
+                    </th>
+                    <th className="px-4 py-3 text-left font-medium">Items</th>
+                    <th className="px-4 py-3 text-left font-medium">Amount</th>
+                    <th className="px-4 py-3 text-left font-medium">Status</th>
+                    <th className="px-4 py-3 text-left font-medium">Date</th>
+                    <th className="px-4 py-3 text-right font-medium">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pageRows.map((o, i) => {
+                    const id = o._id || o.id;
+                    const rowKey = id || `idx-${i}`;
+
+                    const customer =
+                      o.user?.name ||
+                      o.user?.fullName ||
+                      o.customerName ||
+                      o.userId?.name ||
+                      "-";
+
+                    const items = Array.isArray(o.items)
+                      ? o.items
+                      : o.orderItems || [];
+                    const itemsText = items.length
+                      ? items
+                          .map(
+                            (it) =>
+                              it?.name ||
+                              it?.title ||
+                              it?.menuItem?.name ||
+                              `${it?.quantity || 1}x item`
+                          )
+                          .slice(0, 3)
+                          .join(", ") + (items.length > 3 ? "…" : "")
+                      : "-";
+
+                    const total =
+                      typeof o.total === "number"
+                        ? o.total
+                        : o.totalAmount ?? o.amount ?? o.price ?? o.totalPrice;
+
+                    const status = o.status || "pending";
+                    const created =
+                      o.createdAt || o.orderTime || o.timestamp || o.updatedAt;
+
+                    return (
+                      <Fragment key={rowKey}>
+                        <tr className="border-t">
+                          <td className="px-4 py-3 font-medium text-gray-900">
+                            {id ? id.slice(-6) : "-"}
+                          </td>
+                          <td className="px-4 py-3">{customer || "-"}</td>
+                          <td className="px-4 py-3 text-gray-600">
+                            {itemsText}
+                          </td>
+                          <td className="px-4 py-3">
+                            {typeof total === "number"
+                              ? `${total.toFixed(2)} €`
+                              : total || "-"}
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <span className="hidden md:inline-block rounded-full bg-gray-100 px-2 py-0.5 text-xs capitalize">
+                                {status}
+                              </span>
+                              <select
+                                value={status}
+                                onChange={(e) =>
+                                  updateStatus(id, e.target.value)
+                                }
+                                className="rounded-lg border border-gray-200 bg-white px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-gray-900"
+                              >
+                                {STATUS_OPTIONS.map((s) => (
+                                  <option key={s} value={s}>
+                                    {s}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-gray-600">
+                            {created ? new Date(created).toLocaleString() : "-"}
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center justify-end gap-2">
+                              <button
+                                onClick={() => toggleDetails(id)}
+                                className="rounded-xl border px-3 py-1.5 text-xs hover:bg-gray-50"
+                              >
+                                {expandedOrderId === id ? "Hide" : "Details"}
+                              </button>
+                              <button
+                                onClick={() => removeOrder(id)}
+                                className="rounded-xl bg-red-600 px-3 py-1.5 text-xs text-white hover:bg-red-700"
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+
+                        {/* Inline details row (between orders) */}
+                        {renderDetailsRow(id, 7)}
+                      </Fragment>
+                    );
+                  })}
+
+                  {!pageRows.length && (
+                    <tr>
+                      <td
+                        colSpan={7}
+                        className="px-4 py-10 text-center text-gray-500"
+                      >
+                        No records found on this page.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* BOTTOM Pagination */}
+            <PaginationBar />
+          </>
+        )}
+      </div>
+
+      {/* Toast */}
+      {toast && (
+        <div
+          role="status"
+          aria-live="polite"
+          className={`fixed bottom-6 left-1/2 z-30 -translate-x-1/2 rounded-xl px-4 py-2 shadow-lg ${
+            toast.type === "error"
+              ? "bg-red-600 text-white"
+              : "bg-gray-900 text-white"
+          }`}
+        >
+          {toast.text}
+        </div>
+      )}
     </div>
   );
 }
