@@ -17,6 +17,7 @@ export default function AddressPage() {
   const [token, setToken] = useState(null);
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState("");
+  const [selectedId, setSelectedId] = useState(null);
 
   // Address list: { id, street, city, postalCode, country, isDefault, tempId? }
   const [addresses, setAddresses] = useState([]);
@@ -145,6 +146,20 @@ export default function AddressPage() {
     })();
   }, [token]);
 
+  // وقتی صفحه لود شد، آدرس انتخاب‌شده قبلی را بخوانیم
+  useEffect(() => {
+    const saved = localStorage.getItem("checkoutAddress");
+    if (saved) {
+      const addr = JSON.parse(saved);
+      setSelectedId(addr.id || addr.tempId);
+    }
+  }, []);
+
+  const handleSelect = (address) => {
+    localStorage.setItem("checkoutAddress", JSON.stringify(address));
+    setSelectedId(address.id || address.tempId);
+  };
+
   // --- Delete address ---
   const handleDelete = async (id) => {
     if (!id) return;
@@ -213,8 +228,10 @@ export default function AddressPage() {
       return;
     }
 
-    const row = addresses.find((a) => a.id === editId || a.tempId === editId);
-
+    const row = addresses.find(
+      (a) => a.id === editId || a._id === editId || a.tempId === editId
+    );
+    if (!row) return;
     // CREATE
     if (!row?.id) {
       try {
@@ -230,25 +247,25 @@ export default function AddressPage() {
           }
         );
         if (!res.ok) throw new Error(`Create failed (${res.status})`);
-        const created = await res.json();
+        const createdUser = await res.json();
+        const last = createdUser?.addresses?.[createdUser.addresses.length - 1]; // the Last Address
 
-        const createdId = created?.id || created?._id || created?.addressId;
         const createdNorm = {
-          id: createdId,
-          street: created?.street || editForm.street,
-          city: created?.city || editForm.city,
-          postalCode: created?.postalCode || editForm.postalCode,
-          country: created?.country || editForm.country,
-          isDefault: !!created?.isDefault,
+          id: last?._id,
+          street: last?.street,
+          city: last?.city,
+          postalCode: last?.postalCode,
+          country: last?.country,
+          isDefault: false,
         };
 
         setAddresses((prev) =>
           prev.map((a) => (a.tempId === editId ? createdNorm : a))
         );
         setEditId(null);
-        setMsg("Address added.");
+        setMsg("✅ Address added.");
       } catch (e) {
-        setMsg(e.message || "Could not add address.");
+        setMsg(e.message || "❌ Could not add address.");
       }
       return;
     }
@@ -256,7 +273,7 @@ export default function AddressPage() {
     // UPDATE
     try {
       const res = await fetch(
-        `http://localhost:5517/user/profile/addresses/${row.id}`,
+        `http://localhost:5517/user/profile/addresses/${row._id || row.id}`,
         {
           method: "PUT",
           headers: {
@@ -274,25 +291,19 @@ export default function AddressPage() {
             : `Update failed (${res.status})`
         );
       }
-
-      const updated = await res.json().catch(() => null);
+      // backend returns the updated single address
+      const updated = await res.json();
+      // replace only that address in the state
       setAddresses((prev) =>
         prev.map((a) =>
-          a.id === row.id
-            ? {
-                ...a,
-                street: updated?.street ?? editForm.street,
-                city: updated?.city ?? editForm.city,
-                postalCode: updated?.postalCode ?? editForm.postalCode,
-                country: updated?.country ?? editForm.country,
-              }
-            : a
+          (a._id || a.id) === (row._id || row.id) ? { ...a, ...updated } : a
         )
       );
       setEditId(null);
-      setMsg("Address updated.");
+      setEditForm({ street: "", city: "", postalCode: "", country: "" });
+      setMsg("✅ Address updated successfully.");
     } catch (e) {
-      setMsg(e.message || "Could not update address.");
+      setMsg(e.message || "❌ Could not update address.");
     }
   };
 
@@ -341,6 +352,7 @@ export default function AddressPage() {
           {sorted.map((address) => {
             const rowKey = address.id || address.tempId;
             const isEditing = editId === (address.id ?? address.tempId ?? null);
+            const isSelected = selectedId === rowKey;
 
             return (
               <div
@@ -426,6 +438,17 @@ export default function AddressPage() {
                     </div>
 
                     <div className="flex flex-wrap gap-2">
+                      <button
+                        onClick={() => handleSelect(address)}
+                        className={`px-3 py-2 rounded-lg text-white ${
+                          isSelected
+                            ? "bg-green-700"
+                            : "bg-green-600 hover:bg-green-700"
+                        }`}
+                      >
+                        {isSelected ? "✅ Selected" : "Use for Checkout"}
+                      </button>
+
                       <button
                         onClick={() => handleEdit(address)}
                         className="px-3 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700"

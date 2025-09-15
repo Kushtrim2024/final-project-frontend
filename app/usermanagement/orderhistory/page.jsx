@@ -35,7 +35,7 @@ export default function OrderHistoryPage() {
         }
 
         const data = await res.json();
-        setOrders(Array.isArray(data) ? data : []); // مطمئن بشیم همیشه آرایه‌ست
+        setOrders(Array.isArray(data) ? data : []); //
       } catch (error) {
         console.error("Error fetching orders:", error);
       } finally {

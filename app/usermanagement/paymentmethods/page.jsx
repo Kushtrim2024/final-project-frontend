@@ -50,14 +50,17 @@ export default function PaymentMethodsPage() {
   // ✅ Payment Methods laden nach Login
   useEffect(() => {
     if (!token) return;
-    fetch("http://localhost:5517/cart/payment-methods", {
+    fetch("http://localhost:5517/user/payment-methods", {
       method: "GET",
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((res) => res.json())
       .then((data) => {
+        console.log("API response:", data);
         if (data?.paymentMethods) {
           setPaymentMethods(data.paymentMethods);
+        } else {
+          console.warn("No paymentMethods in response");
         }
       })
       .catch(console.error);
@@ -74,7 +77,7 @@ export default function PaymentMethodsPage() {
     }
 
     try {
-      const res = await fetch("http://localhost:5517/cart/add-payment", {
+      const res = await fetch("http://localhost:5517/user/add-payment", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -112,7 +115,7 @@ export default function PaymentMethodsPage() {
     if (!token) return;
 
     try {
-      const res = await fetch("http://localhost:5517/cart/delete-payment", {
+      const res = await fetch("http://localhost:5517/user/delete-payment", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

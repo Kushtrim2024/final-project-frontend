@@ -140,15 +140,80 @@ export default function CheckoutPage() {
   const [address, setAddress] = useState("");
   const [deliveryType, setDeliveryType] = useState("delivery");
   const [paymentMethod, setPaymentMethod] = useState("card");
+  const [savedMethods, setSavedMethods] = useState([]);
+  const [selectedAddressObj, setSelectedAddressObj] = useState(null);
   const [cardNumber, setCardNumber] = useState("");
 
   /* auth */
   const { token, userId, name } = getAuthFromStorage();
   const isLoggedIn = Boolean(token);
 
+  // --- Load saved data from localStorage ---
+  useEffect(() => {
+    const savedAddr = localStorage.getItem("checkoutAddress");
+    if (savedAddr) {
+      const addrObj = JSON.parse(savedAddr);
+      setSelectedAddressObj(addrObj);
+      setAddress(
+        `${addrObj.street}, ${addrObj.city}, ${addrObj.postalCode}, ${addrObj.country}`
+      );
+    }
+
+    const savedName = localStorage.getItem("checkoutName");
+    if (savedName) setCustomerName(savedName);
+
+    const savedPhone = localStorage.getItem("checkoutPhone");
+    if (savedPhone) setPhone(savedPhone);
+  }, []);
+
+  // --- Handle manual address change ---
+  const handleAddressChange = (e) => {
+    setAddress(e.target.value);
+    setSelectedAddressObj(null);
+  };
   useEffect(() => {
     setItems(readCart());
   }, []);
+
+  useEffect(() => {
+    const savedName = localStorage.getItem("checkoutName");
+    if (savedName) setCustomerName(savedName);
+
+    const savedPhone = localStorage.getItem("checkoutPhone");
+    if (savedPhone) setPhone(savedPhone);
+
+    const savedAddress = localStorage.getItem("checkoutAddress");
+    if (savedAddress) {
+      const addrObj = JSON.parse(savedAddress);
+      setAddress(
+        `${addrObj.street}, ${addrObj.postalCode},\n${addrObj.city}, ${addrObj.country}`
+      );
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!token) return;
+
+    const fetchPaymentMethods = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/user/payment-methods`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        if (!res.ok) throw new Error("Failed to fetch payment methods");
+        const data = await res.json();
+        setSavedMethods(data.paymentMethods || []);
+        if (data.paymentMethods?.length > 0) {
+          setPaymentMethod(data.paymentMethods[0]._id);
+        }
+      } catch (e) {
+        console.error("Error fetching payment methods:", e);
+      }
+    };
+
+    fetchPaymentMethods();
+  }, [token]);
 
   /* totals */
   const subTotal = useMemo(() => {
@@ -220,12 +285,12 @@ export default function CheckoutPage() {
       address,
       deliveryType,
       paymentMethod,
-      paymentDetails:
-        paymentMethod === "card"
-          ? { cardNumber }
-          : paymentMethod === "paypal"
-          ? { transactionId: "PAYPAL_DEMO_" + Date.now() }
-          : {},
+      // paymentDetails:
+      // paymentMethod === "card"
+      //   ? { cardNumber }
+      //   : paymentMethod === "paypal"
+      //   ? { transactionId: "PAYPAL_DEMO_" + Date.now() }
+      //   : {},
     };
 
     try {
@@ -799,7 +864,45 @@ export default function CheckoutPage() {
                 Payment
               </div>
 
-              <div className="flex flex-wrap gap-2">
+              {savedMethods.length > 0 ? (
+                <div className="space-y-2">
+                  <div className="text-xs text-slate-500 mb-2">
+                    Saved methods
+                  </div>
+                  {savedMethods.map((m) => (
+                    <button
+                      key={m._id}
+                      className={`w-full flex items-center justify-between rounded-lg border px-3 py-2 text-sm ${
+                        paymentMethod === m._id
+                          ? "border-rose-600 bg-rose-50"
+                          : "border-slate-200 bg-white hover:bg-slate-50"
+                      }`}
+                      onClick={() => setPaymentMethod(m._id)}
+                    >
+                      <div className="flex items-center gap-2">
+                        {m.icon && (
+                          <img src={m.icon} alt={m.type} className="h-5 w-5" />
+                        )}
+                        <span className="capitalize">{m.type}</span>
+                        {/* {m.cardType && (
+                          <span>
+                            ({m.cardType} ••••{m.last4})
+                          </span>
+                        )} */}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-sm text-slate-500 mb-2">
+                  No saved payment methods
+                </div>
+              )}
+
+              {/* <div className="mt-4 text-xs text-slate-500">
+                Or use a new method:
+              </div>
+              <div className="flex flex-wrap gap-2 mt-2">
                 {["card", "paypal", "applepay", "googlepay"].map((pm) => (
                   <button
                     key={pm}
@@ -813,33 +916,17 @@ export default function CheckoutPage() {
                     {pm}
                   </button>
                 ))}
-              </div>
-
-              {paymentMethod === "card" && (
-                <div className="mt-3">
-                  <input
-                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
-                    placeholder="Card number"
-                    value={cardNumber}
-                    onChange={(e) => setCardNumber(e.target.value)}
-                  />
-                  <div className="mt-1 text-xs text-slate-500">
-                    {cardNumber
-                      ? `Detected: ${detectCardType(cardNumber)}`
-                      : "We only store the last 4 digits on the server."}
-                  </div>
-                </div>
-              )}
+              </div> */}
             </div>
-
-            <button
-              className="w-full rounded-lg bg-rose-600 py-3 font-semibold text-white hover:bg-rose-700 disabled:opacity-60"
-              disabled={!items.length}
-              onClick={handlePlaceOrder}
-            >
-              Place Order
-            </button>
           </div>
+
+          <button
+            className="w-full rounded-lg bg-rose-600 py-3 font-semibold text-white hover:bg-rose-700 disabled:opacity-60"
+            disabled={!items.length}
+            onClick={handlePlaceOrder}
+          >
+            Place Order
+          </button>
         </div>
       )}
 
