@@ -1,1011 +1,1007 @@
+// app/(example)/page.jsx
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useSession } from "next-auth/react";
 
-/* ===================== CONFIG ===================== */
-const API_BASE = "http://localhost:5517";
-// Fallback-Restaurant, von dem wir wissen, dass Items existieren
-const DEFAULT_RESTAURANT_ID = "688f371b18a69156d2d8bb4c";
-// Große Optionen, damit du viel/alles siehst
-const PAGE_SIZE_OPTIONS = [50, 100, 200, 500, 1000];
+/**
+ * Notes:
+ * - 100% Tailwind (no inline styles).
+ * - Single component: list, search, pagination, modal form (create/update) all here.
+ * - Pagination shows: Prev, 1, 2, …, current, …, last, Next (current page always visible).
+ * - Page size options: 9/18/27.
+ * - Sizes: presets (Small/Medium/Large) + optional custom sizes; edit correctly pre-fills & updates.
+ * - Add-ons editable.
+ * - Restaurant ID resolution via /owner/restaurants/my-restaurant; fallback to session/localStorage.
+ */
 
-/* ===================== HELPERS ===================== */
+export default function Page() {
+  const { data: session, status } = useSession();
 
-// Token aus localStorage
-function getToken() {
-  if (typeof window === "undefined") return null;
-  return localStorage.getItem("token");
-}
-function authHeader() {
-  const t = getToken();
-  return t ? { Authorization: `Bearer ${t}` } : {};
-}
+  const CATEGORY_ENUM = [
+    "Starters",
+    "Main Courses",
+    "Desserts",
+    "Drinks",
+    "Specials",
+  ];
+  const STATUS_ENUM = ["available", "unavailable"];
+  const PRESET_SIZES = ["Small", "Medium", "Large"];
+  const PAGE_SIZE_OPTIONS = [9, 18, 27];
 
-// RestaurantId aus localStorage.auth holen (falls Login-Modul sie dort speichert)
-function getRestaurantIdFromAuth() {
-  try {
-    const auth = JSON.parse(localStorage.getItem("auth") || "null");
-    return (
-      auth?.user?.restaurantId ||
-      auth?.user?.restaurant?._id ||
-      auth?.user?.restaurant ||
-      null
-    );
-  } catch {
+  // --- mount guard (hydration-safe) ---
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
+  // --- id inference (session/localStorage) ---
+  const id = useMemo(() => {
+    const norm = (raw) => {
+      if (raw == null) return null;
+      const n = Number(raw);
+      return Number.isFinite(n) && String(n) === String(raw) ? n : String(raw);
+    };
+    const fromSession = session?.user?.restaurantId ?? session?.user?.id;
+    if (!mounted && !fromSession) return null;
+    if (fromSession != null) return norm(fromSession);
+    try {
+      const rawAuth = localStorage.getItem("auth");
+      if (rawAuth) {
+        const auth = JSON.parse(rawAuth);
+        const fromLS = auth?.user?.restaurantId ?? auth?.user?.id ?? null;
+        if (fromLS != null) return norm(fromLS);
+      }
+    } catch {}
     return null;
-  }
-}
+  }, [mounted, session?.user?.restaurantId, session?.user?.id]);
 
-// Zahl-Parser (für „12,99“ o.ä.)
-function toNumberOrNull(v) {
-  if (v == null || v === "") return null;
-  const n = Number(
-    String(v)
-      .replace(/[^\d.,-]/g, "")
-      .replace(",", ".")
-  );
-  return Number.isFinite(n) ? n : null;
-}
+  const [restaurantIdResolved, setRestaurantIdResolved] = useState(null);
+  const [resolving, setResolving] = useState(false);
 
-// Filter (Search + Kategorie)
-function applyClientFilters(arr, search = "", filterCat = "") {
-  const q = (search || "").toLowerCase().trim();
-  const cat = (filterCat || "").toLowerCase().trim();
-  return arr.filter((i) => {
-    const inText =
-      !q ||
-      (i.name && i.name.toLowerCase().includes(q)) ||
-      (i.description && i.description.toLowerCase().includes(q)) ||
-      (i.category && i.category.toLowerCase().includes(q));
-    const inCat = !cat || (i.category && i.category.toLowerCase() === cat);
-    return inText && inCat;
-  });
-}
-
-// Pager-Anzeige (1 … 4 5 6 … 10)
-function paginateRange(page, totalPages, span = 1) {
-  const pages = new Set([1, totalPages, page]);
-  for (let d = 1; d <= span; d++) {
-    pages.add(page - d);
-    pages.add(page + d);
-  }
-  const sorted = [...pages]
-    .filter((n) => n >= 1 && n <= totalPages)
-    .sort((a, b) => a - b);
-  const out = [];
-  for (let i = 0; i < sorted.length; i++) {
-    out.push(sorted[i]);
-    if (i < sorted.length - 1 && sorted[i + 1] - sorted[i] > 1) out.push("…");
-  }
-  return out;
-}
-
-// UI-Mapping -> deine DB-Struktur
-function normalizeItem(x) {
-  const priceNum = Number.isFinite(Number(x.price)) ? Number(x.price) : null;
-  return {
-    id: x._id,
-    name: x.name,
-    description: x.description ?? "",
-    category: x.category,
-    subcategory: x.subcategory,
-    price: priceNum, // direkte Anzeige
-    basePrice: priceNum ?? 0, // Fallback
-    sizes: [], // deine DB nutzt keine sizes bei diesen Seeds
-    sizesUI: "",
-    image:
-      Array.isArray(x.images) && x.images.length > 0
-        ? x.images[0]
-        : x.image || "",
-    status: x.available ? "Active" : "Inactive",
-  };
-}
-
-// Form -> Backend Payload (Add/Update)
-function buildPayload(form) {
-  const payload = {
-    name: form.name,
-    description: form.description,
-    category: form.category,
-    image: form.image || undefined,
-    available: (form.status || "Active") === "Active",
-  };
-
-  // Größen vs. Single-Price
-  const s = form.sizesEnabled
-    ? [
-        form.sizePrices.small
-          ? { label: "Small", price: form.sizePrices.small }
-          : null,
-        form.sizePrices.medium
-          ? { label: "Medium", price: form.sizePrices.medium }
-          : null,
-        form.sizePrices.large
-          ? { label: "Large", price: form.sizePrices.large }
-          : null,
-      ].filter(Boolean)
-    : [];
-
-  if (s.length > 0) {
-    payload.sizes = s.map((x) => ({
-      label: x.label,
-      price: Number(String(x.price).replace(",", ".")),
-    }));
-  } else {
-    // deine Seeds nutzen "price"
-    payload.price = form.price
-      ? Number(String(form.price).replace(",", "."))
-      : undefined;
-  }
-
-  return payload;
-}
-
-// Datei -> Base64 Fallback
-function fileToBase64(file) {
-  return new Promise((resolve, reject) => {
-    const r = new FileReader();
-    r.onload = () => resolve(r.result);
-    r.onerror = reject;
-    r.readAsDataURL(file);
-  });
-}
-
-/* ===================== PAGE ===================== */
-
-export default function MenuManagementPage() {
-  // Daten & UI-State
-  const [items, setItems] = useState([]); // Client-Mode (alle)
-  const [pageItems, setPageItems] = useState([]); // Server-Mode (Seite)
-  const [serverMode, setServerMode] = useState(false);
-  const [totalCount, setTotalCount] = useState(null);
-  const [lastBatchSize, setLastBatchSize] = useState(0);
-
-  // groß starten, damit du „alles“ siehst
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(500);
-  const [reloadTick, setReloadTick] = useState(0);
-
-  const [search, setSearch] = useState("");
-  const [filterCat, setFilterCat] = useState("");
-
-  const [form, setForm] = useState({
-    id: null,
-    name: "",
-    description: "",
-    category: "",
-    price: "",
-    sizesEnabled: false,
-    sizePrices: { small: "", medium: "", large: "" },
-    status: "Active",
-    image: "",
-    imageData: null,
-    preview: "",
-  });
-  const [editingId, setEditingId] = useState(null);
-  const [editingOriginalSizes, setEditingOriginalSizes] = useState([]);
-  const [viewMode, setViewMode] = useState("grouped"); // "grouped" | "table"
-
-  const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState(null);
-
-  /* ---------- LOAD DATA ---------- */
   useEffect(() => {
+    if (!mounted) return;
+    const isObjectId = (val) =>
+      typeof val === "string" && /^[a-fA-F0-9]{24}$/.test(val);
+
+    (async () => {
+      try {
+        setResolving(true);
+        setRestaurantIdResolved(null);
+        const BASE =
+          process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5517";
+        const headers = {};
+        try {
+          const token =
+            localStorage.getItem("token") ||
+            localStorage.getItem("accessToken") ||
+            localStorage.getItem("jwt");
+          if (token) headers["Authorization"] = `Bearer ${token}`;
+        } catch {}
+
+        const meRes = await fetch(`${BASE}/owner/restaurants/my-restaurant`, {
+          method: "GET",
+          credentials: "include",
+          headers,
+          cache: "no-store",
+        });
+
+        if (meRes.ok) {
+          const myRestaurant = await meRes.json();
+          if (myRestaurant?._id) {
+            setRestaurantIdResolved(String(myRestaurant._id));
+            return;
+          }
+        }
+
+        if (isObjectId(id)) {
+          setRestaurantIdResolved(String(id));
+          return;
+        }
+
+        setRestaurantIdResolved(null);
+      } catch {
+        const isObjectId = (val) =>
+          typeof val === "string" && /^[a-fA-F0-9]{24}$/.test(val);
+        if (isObjectId(id)) setRestaurantIdResolved(String(id));
+      } finally {
+        setResolving(false);
+      }
+    })();
+  }, [mounted, id]);
+
+  // --- data state ---
+  const [list, setList] = useState([]);
+  const [err, setErr] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  // --- filters / pagination ---
+  const [search, setSearch] = useState("");
+  const [pageSize, setPageSize] = useState(PAGE_SIZE_OPTIONS[0]);
+  const [page, setPage] = useState(1);
+
+  // --- modal form state (create/update) ---
+  const [showForm, setShowForm] = useState(false);
+  const [editing, setEditing] = useState(null);
+
+  // Form fields (schema-aligned)
+  const [fName, setFName] = useState("");
+  const [fDescription, setFDescription] = useState("");
+  const [fCategory, setFCategory] = useState(CATEGORY_ENUM[0]);
+  const [fBasePrice, setFBasePrice] = useState("");
+  const [fStatus, setFStatus] = useState("available");
+
+  // Sizes (presets + custom)
+  const [presetEnabled, setPresetEnabled] = useState({
+    Small: false,
+    Medium: false,
+    Large: false,
+  });
+  const [presetPrices, setPresetPrices] = useState({
+    Small: "",
+    Medium: "",
+    Large: "",
+  });
+  const [customSizes, setCustomSizes] = useState([]);
+
+  // Add-ons
+  const [addOns, setAddOns] = useState([]);
+
+  useEffect(() => {
+    if (!mounted) return;
+    if (!restaurantIdResolved) return;
+
+    const controller = new AbortController();
+
     (async () => {
       try {
         setLoading(true);
-        setError(null);
+        setErr(null);
 
-        // 1) Restaurant-ID bestimmen + Fallback
-        let restaurantId = getRestaurantIdFromAuth();
-        if (!restaurantId) {
-          restaurantId = DEFAULT_RESTAURANT_ID;
-          console.warn("Nutze Fallback restaurantId:", restaurantId);
+        const BASE =
+          process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5517";
+        const API_URL = `${BASE}/owner/restaurants/${restaurantIdResolved}/menu-items`;
+        const headers = {};
+        try {
+          const token =
+            localStorage.getItem("token") ||
+            localStorage.getItem("accessToken") ||
+            localStorage.getItem("jwt");
+          if (token) headers["Authorization"] = `Bearer ${token}`;
+        } catch {}
+
+        const res = await fetch(API_URL, {
+          signal: controller.signal,
+          cache: "no-store",
+          credentials: "include",
+          headers,
+        });
+
+        if (!res.ok) {
+          if (res.status === 401)
+            throw new Error("401 Unauthorized — token missing/invalid.");
+          if (res.status === 403)
+            throw new Error("403 Forbidden — not enough permissions.");
+          if (res.status === 404)
+            throw new Error("404 Not Found — wrong restaurantId.");
+          throw new Error(`HTTP ${res.status} ${res.statusText}`);
         }
 
-        // 2) URL bauen
-        const url = new URL(
-          `${API_BASE}/owner/restaurants/${restaurantId}/menu-items`
-        );
-        url.searchParams.set("page", String(page));
-        url.searchParams.set("limit", String(pageSize));
-
-        // 3) Fetch
-        const res = await fetch(url.toString(), {
-          cache: "no-store",
-          headers: { "Content-Type": "application/json", ...authHeader() },
-        });
-        if (!res.ok) throw new Error(`Request failed ${res.status}`);
         const json = await res.json();
 
-        // 4) Daten extrahieren
-        let data = [];
-        let total = 0;
-
-        if (json && Array.isArray(json.items)) {
-          data = json.items;
-          total =
-            typeof json.total === "number" ? json.total : json.items.length;
-        } else if (Array.isArray(json)) {
-          data = json;
-          total = json.length;
-        } else if (json && Array.isArray(json.data)) {
-          data = json.data;
-          total =
-            typeof json.total === "number" ? json.total : json.data.length;
+        // Flatten grouped object -> array
+        let flat = [];
+        if (Array.isArray(json)) {
+          flat = json;
+        } else if (json && typeof json === "object") {
+          Object.entries(json).forEach(([cat, items]) => {
+            (items || []).forEach((i) =>
+              flat.push({ ...i, category: i.category ?? cat })
+            );
+          });
         }
-
-        const norm = data.map(normalizeItem);
-
-        // 5) States setzen – wir nutzen Client-Mode (alles im Speicher)
-        setItems(norm);
-        setPageItems(norm); // für späteren Server-Mode
-        setTotalCount(total);
-        setLastBatchSize(data.length);
-        setServerMode(false);
+        flat.sort(
+          (a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)
+        );
+        setList(flat);
+        setPage(1);
       } catch (e) {
-        console.error("Fetch error:", e);
-        setError("Load failed");
+        if (e.name !== "AbortError") {
+          setErr(e.message || String(e));
+        }
       } finally {
         setLoading(false);
       }
     })();
-  }, [page, pageSize, reloadTick]);
 
-  // Filterwechsel -> Seite 1 (nur im Client-Mode)
-  useEffect(() => {
-    if (!serverMode) setPage(1);
-  }, [search, filterCat, serverMode]);
+    return () => controller.abort();
+  }, [mounted, status, restaurantIdResolved]);
 
-  /* ---------- DERIVED ---------- */
-  const filteredAll = useMemo(
-    () => applyClientFilters(items, search, filterCat),
-    [items, search, filterCat]
-  );
+  // filter + pagination
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return list;
+    return list.filter((i) => {
+      const name = (i.name || "").toLowerCase();
+      const cat = (i.category || "").toLowerCase();
+      const desc = (i.description || "").toLowerCase();
+      return name.includes(q) || cat.includes(q) || desc.includes(q);
+    });
+  }, [list, search]);
 
-  const totalPages = useMemo(() => {
-    const count = serverMode ? totalCount ?? 0 : filteredAll.length;
-    return Math.max(1, Math.ceil(count / pageSize));
-  }, [serverMode, totalCount, filteredAll.length, pageSize]);
-
-  const dataForTable = useMemo(() => {
-    if (serverMode) return pageItems;
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const pageItems = useMemo(() => {
     const start = (page - 1) * pageSize;
-    return filteredAll.slice(start, start + pageSize);
-  }, [serverMode, pageItems, filteredAll, page, pageSize]);
+    return filtered.slice(start, start + pageSize);
+  }, [filtered, page, pageSize]);
 
-  const categories = useMemo(() => {
-    const src = serverMode ? pageItems : items;
-    return Array.from(
-      new Set(src.map((i) => i.category).filter(Boolean))
-    ).sort();
-  }, [items, pageItems, serverMode]);
+  useEffect(() => {
+    setPage(1);
+  }, [search, pageSize]);
 
-  const isPrevDisabled = loading || page <= 1;
-  const isNextDisabled =
-    loading ||
-    (serverMode
-      ? totalCount != null
-        ? page >= totalPages
-        : lastBatchSize < pageSize
-      : page >= totalPages);
+  // --- actions ---
+  function openCreate() {
+    setEditing(null);
+    setFName("");
+    setFDescription("");
+    setFCategory(CATEGORY_ENUM[0]);
+    setFBasePrice("");
+    setFStatus("available");
+    setPresetEnabled({ Small: false, Medium: false, Large: false });
+    setPresetPrices({ Small: "", Medium: "", Large: "" });
+    setCustomSizes([]);
+    setAddOns([]);
+    setShowForm(true);
+  }
 
-  /* ---------- HANDLERS ---------- */
-  const handleInput = (e) => {
-    const { name, value, checked } = e.target;
-    if (name === "sizesEnabled") {
-      setForm((p) => ({ ...p, sizesEnabled: checked }));
-      return;
-    }
-    if (name.startsWith("sizePrices.")) {
-      const key = name.split(".")[1];
-      setForm((p) => ({ ...p, sizePrices: { ...p.sizePrices, [key]: value } }));
-      return;
-    }
-    setForm((p) => ({ ...p, [name]: value }));
-  };
+  function openEdit(item) {
+    setEditing(item);
+    setFName(item.name || "");
+    setFDescription(item.description || "");
+    setFCategory(item.category || CATEGORY_ENUM[0]);
+    setFBasePrice(
+      typeof item.basePrice === "number" ? String(item.basePrice) : ""
+    );
+    setFStatus(item.status || "available");
 
-  const onEdit = (x) => {
-    const hasSizes = Array.isArray(x.sizes) && x.sizes.length > 0;
-    const sizeMap = { small: "", medium: "", large: "" };
-    if (hasSizes) {
-      for (const s of x.sizes) {
-        const lbl = (s.label || "").toLowerCase();
-        const val = toNumberOrNull(s.price);
-        if (lbl.startsWith("s")) sizeMap.small = val != null ? String(val) : "";
-        else if (lbl.startsWith("m"))
-          sizeMap.medium = val != null ? String(val) : "";
-        else if (lbl.startsWith("l"))
-          sizeMap.large = val != null ? String(val) : "";
+    // sizes -> presets + custom
+    const normalize = (s) =>
+      String(s || "")
+        .trim()
+        .toLowerCase();
+    const initEnabled = { Small: false, Medium: false, Large: false };
+    const initPrices = { Small: "", Medium: "", Large: "" };
+    const customs = [];
+
+    (item.sizes || []).forEach((s) => {
+      const label = String(s.label || "");
+      const price = s.price ?? "";
+      const presetHit = PRESET_SIZES.find(
+        (p) => normalize(p) === normalize(label)
+      );
+      if (presetHit) {
+        initEnabled[presetHit] = true;
+        initPrices[presetHit] = String(price);
+      } else {
+        customs.push({ label, price: String(price) });
       }
-    }
-    setEditingId(x.id);
-    setEditingOriginalSizes(x.sizes || []);
-    setForm({
-      id: x.id,
-      name: x.name || "",
-      description: x.description || "",
-      category: x.category || "",
-      price: !hasSizes
-        ? x.price != null
-          ? String(x.price)
-          : x.basePrice != null
-          ? String(x.basePrice)
-          : ""
-        : "",
-      sizesEnabled: hasSizes,
-      sizePrices: sizeMap,
-      status: x.status || "Active",
-      image: x.image || "",
-      imageData: null,
-      preview: x.image || "",
     });
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  };
 
-  const onCancelEdit = () => {
-    setEditingId(null);
-    setEditingOriginalSizes([]);
-    setForm({
-      id: null,
-      name: "",
-      description: "",
-      category: "",
-      price: "",
-      sizesEnabled: false,
-      sizePrices: { small: "", medium: "", large: "" },
-      status: "Active",
-      image: "",
-      imageData: null,
-      preview: "",
-    });
-  };
+    setPresetEnabled(initEnabled);
+    setPresetPrices(initPrices);
+    setCustomSizes(customs);
 
-  const onSave = async () => {
-    if (!form.name) return alert("Name is required");
+    setAddOns(
+      Array.isArray(item.addOns)
+        ? item.addOns.map((a) => ({
+            name: a.name || "",
+            price: String(a.price ?? ""),
+          }))
+        : []
+    );
 
-    // Restaurant-ID wie beim Laden bestimmen
-    let restaurantId = getRestaurantIdFromAuth() || DEFAULT_RESTAURANT_ID;
-    const LIST_URL = `${API_BASE}/owner/restaurants/${restaurantId}/menu-items`;
+    setShowForm(true);
+  }
 
-    const payload = buildPayload(form);
+  async function handleDelete(item) {
+    if (!confirm(`Delete “${item.name}”?`)) return;
     try {
-      setSaving(true);
-      setError(null);
-      const res = await fetch(LIST_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...authHeader() },
+      setLoading(true);
+      const BASE =
+        process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5517";
+      const headers = {};
+      const token =
+        localStorage.getItem("token") ||
+        localStorage.getItem("accessToken") ||
+        localStorage.getItem("jwt");
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+      const res = await fetch(
+        `${BASE}/owner/restaurants/${restaurantIdResolved}/menu-items/${item._id}`,
+        { method: "DELETE", credentials: "include", headers }
+      );
+      if (!res.ok) throw new Error("Delete failed");
+      setList((prev) => prev.filter((x) => x._id !== item._id));
+    } catch (e) {
+      alert(e.message || "Delete error");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+
+    try {
+      const BASE =
+        process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5517";
+      const url = editing
+        ? `${BASE}/owner/restaurants/${restaurantIdResolved}/menu-items/${editing._id}`
+        : `${BASE}/owner/restaurants/${restaurantIdResolved}/menu-items`;
+      const method = editing ? "PUT" : "POST";
+
+      const headers = {};
+      const token =
+        localStorage.getItem("token") ||
+        localStorage.getItem("accessToken") ||
+        localStorage.getItem("jwt");
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+
+      // build sizes payload from preset + custom
+      const sizesFromPresets = PRESET_SIZES.flatMap((label) =>
+        presetEnabled[label] && presetPrices[label] !== ""
+          ? [{ label, price: Number(presetPrices[label]) }]
+          : []
+      );
+      const sizesFromCustom = (customSizes || [])
+        .filter((s) => s.label && s.price !== "")
+        .map((s) => ({ label: s.label, price: Number(s.price) }));
+
+      const payload = {
+        name: fName,
+        description: fDescription,
+        category: fCategory,
+        status: fStatus,
+        ...(fBasePrice !== "" ? { basePrice: Number(fBasePrice) } : {}),
+        sizes: [...sizesFromPresets, ...sizesFromCustom],
+        addOns: (addOns || [])
+          .filter((a) => a.name && a.price !== "")
+          .map((a) => ({ name: a.name, price: Number(a.price) })),
+      };
+
+      const res = await fetch(url, {
+        method,
+        headers: { ...headers, "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      if (!res.ok) {
-        const t = await res.text();
-        throw new Error(`Create failed (${res.status}): ${t}`);
-      }
-      setReloadTick((t) => t + 1);
-      setPage(1);
-      onCancelEdit();
-    } catch (e) {
-      setError(e.message || "Create failed");
-    } finally {
-      setSaving(false);
-    }
-  };
 
-  const onUpdate = async () => {
-    if (!editingId) return;
-
-    let restaurantId = getRestaurantIdFromAuth() || DEFAULT_RESTAURANT_ID;
-    const LIST_URL = `${API_BASE}/owner/restaurants/${restaurantId}/menu-items`;
-
-    const payload = buildPayload(form);
-    try {
-      setSaving(true);
-      setError(null);
-      const res = await fetch(`${LIST_URL}/${editingId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json", ...authHeader() },
-        body: JSON.stringify(payload),
-      });
-      if (!res.ok) {
-        const t = await res.text();
-        throw new Error(`Update failed (${res.status}): ${t}`);
-      }
-      setReloadTick((t) => t + 1);
-      onCancelEdit();
-    } catch (e) {
-      setError(e.message || "Update failed");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const onDelete = async (id) => {
-    if (!confirm("Delete this item?")) return;
-
-    let restaurantId = getRestaurantIdFromAuth() || DEFAULT_RESTAURANT_ID;
-    const LIST_URL = `${API_BASE}/owner/restaurants/${restaurantId}/menu-items`;
-
-    try {
-      setSaving(true);
-      setError(null);
-      const res = await fetch(`${LIST_URL}/${id}`, {
-        method: "DELETE",
-        headers: { ...authHeader() },
-      });
-      if (!res.ok) {
-        const t = await res.text();
-        throw new Error(`Delete failed (${res.status}): ${t}`);
-      }
-      setReloadTick((t) => t + 1);
-      if (editingId === id) onCancelEdit();
-    } catch (e) {
-      setError(e.message || "Delete failed");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const UPLOAD_URL = `${API_BASE}/upload`;
-  const handleFileChange = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const preview = URL.createObjectURL(file);
-    setForm((p) => ({ ...p, preview }));
-
-    try {
-      const formData = new FormData();
-      formData.append("file", file);
-      const up = await fetch(UPLOAD_URL, {
-        method: "POST",
-        headers: { ...authHeader() },
-        body: formData,
-      });
-      if (up.ok) {
-        const j = await up.json().catch(() => null);
-        if (j?.url) {
-          setForm((p) => ({ ...p, image: j.url, imageData: null }));
+      let msg = `${res.status} Error`;
+      try {
+        const data = await res.clone().json();
+        if (!res.ok) msg = data?.message || data?.error || msg;
+        else {
+          const saved = data;
+          // update local list
+          if (editing) {
+            setList((prev) =>
+              prev.map((x) => (x._id === saved._id ? saved : x))
+            );
+          } else {
+            setList((prev) => [saved, ...prev]);
+          }
+          setShowForm(false);
           return;
         }
+      } catch {
+        if (!res.ok) throw new Error(msg);
+        setShowForm(false);
+        return;
       }
-    } catch {
-      /* Fallback unten */
+
+      if (!res.ok) throw new Error(msg);
+    } catch (e) {
+      alert(e.message || "Save error");
     }
-    const b64 = await fileToBase64(file);
-    setForm((p) => ({ ...p, imageData: b64, image: "" }));
+  }
+
+  // --- UI helpers inside component (no external helpers) ---
+  const minSizePrice = (sizes) => {
+    const nums = (sizes || [])
+      .map((s) => Number(s.price))
+      .filter((n) => Number.isFinite(n));
+    return nums.length ? Math.min(...nums) : 0;
   };
 
-  /* ---------- RENDER ---------- */
-  return (
-    <div className="min-h-screen bg-gray-100 p-4">
-      <div className="mx-auto max-w-7xl rounded-lg bg-white p-4 shadow">
-        {/* Header */}
-        <div className="mb-4 flex items-center justify-between">
-          <div className="ml-1 text-gray-800 font-bold text-2xl">
-            <h1>Restaurant Menu</h1>
-          </div>
-          <div className="text-sm text-white rounded-md bg-orange-600 px-4 py-2">
-            {loading
-              ? "Loading…"
-              : totalCount != null
-              ? `Total: ${totalCount}`
-              : `Loaded: ${items.length}`}
-            {saving ? " • Saving…" : ""}
-            {error && (
-              <span className="ml-3 rounded bg-red-100 px-2 py-1 text-red-700">
-                {error}
-              </span>
-            )}
-          </div>
-        </div>
+  // Pagination view: Prev, 1, 2, …, current, …, last, Next
+  const Pager = () => {
+    if (totalPages <= 1) return null;
+    const first = 1;
+    const second = 2;
+    const last = totalPages;
+    const showCurrent =
+      page !== first && page !== second && page !== last && totalPages > 3;
 
-        {/* Form */}
-        <section className="mb-6 rounded-lg bg-gray-50 p-4">
-          <h2 className="mb-3 text-lg font-semibold">
-            {editingId ? "Edit Item" : "Add New Item"}
-          </h2>
+    const baseBtn =
+      "px-3 py-1.5 rounded-lg border text-sm disabled:opacity-40 disabled:cursor-not-allowed";
+    const active = "bg-black text-white border-black";
+    const normal = "bg-white text-black border-slate-200";
 
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-            <div>
-              <label className="block text-sm font-medium text-gray-700">
-                Name
-              </label>
-              <input
-                name="name"
-                value={form.name}
-                onChange={handleInput}
-                placeholder="Pizza Margherita"
-                className="mt-1 block w-full rounded-md border-gray-300 p-2 text-sm shadow-sm focus:border-orange-500 focus:ring-orange-500"
-              />
-            </div>
+    return (
+      <div className="mt-4 flex items-center justify-center gap-2">
+        <button
+          onClick={() => setPage((p) => Math.max(1, p - 1))}
+          disabled={page <= 1}
+          className={`${baseBtn} ${normal}`}
+        >
+          ‹ Prev
+        </button>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700">
-                Category
-              </label>
-              <input
-                name="category"
-                value={form.category}
-                onChange={handleInput}
-                placeholder="Starters / Main Courses / Drinks …"
-                className="mt-1 block w-full rounded-md border-gray-300 p-2 text-sm shadow-sm"
-              />
-            </div>
+        <button
+          onClick={() => setPage(first)}
+          className={`${baseBtn} ${page === first ? active : normal}`}
+        >
+          {first}
+        </button>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700">
-                Price (single or base)
-              </label>
-              <input
-                name="price"
-                value={form.price}
-                onChange={handleInput}
-                placeholder="10.99"
-                className="mt-1 block w-full rounded-md border-gray-300 p-2 text-sm shadow-sm"
-              />
-            </div>
-
-            <div className="md:col-span-3">
-              <label className="block text-sm font-medium text-gray-700">
-                Description
-              </label>
-              <textarea
-                name="description"
-                value={form.description}
-                onChange={handleInput}
-                placeholder="Item description…"
-                rows={3}
-                className="mt-1 block w-full rounded-md border-gray-300 p-2 text-sm shadow-sm"
-              />
-            </div>
-
-            <div className="md:col-span-3 flex items-center gap-3">
-              <input
-                id="sizesEnabled"
-                type="checkbox"
-                name="sizesEnabled"
-                checked={form.sizesEnabled}
-                onChange={handleInput}
-              />
-              <label htmlFor="sizesEnabled" className="text-sm text-gray-800">
-                Enable sizes (Small / Medium / Large)
-              </label>
-            </div>
-
-            {form.sizesEnabled && (
-              <>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">
-                    Small Price
-                  </label>
-                  <input
-                    name="sizePrices.small"
-                    value={form.sizePrices.small}
-                    onChange={handleInput}
-                    placeholder="8.99"
-                    className="mt-1 block w-full rounded-md border-gray-300 p-2 text-sm shadow-sm"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">
-                    Medium Price
-                  </label>
-                  <input
-                    name="sizePrices.medium"
-                    value={form.sizePrices.medium}
-                    onChange={handleInput}
-                    placeholder="10.99"
-                    className="mt-1 block w-full rounded-md border-gray-300 p-2 text-sm shadow-sm"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">
-                    Large Price
-                  </label>
-                  <input
-                    name="sizePrices.large"
-                    value={form.sizePrices.large}
-                    onChange={handleInput}
-                    placeholder="12.99"
-                    className="mt-1 block w-full rounded-md border-gray-300 p-2 text-sm shadow-sm"
-                  />
-                </div>
-                <div className="md:col-span-3 text-xs text-gray-600">
-                  When sizes are enabled, a <code>sizes</code> array is sent and{" "}
-                  <code>price</code> is omitted.
-                </div>
-              </>
-            )}
-
-            <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700">
-                Image URL
-              </label>
-              <input
-                name="image"
-                value={form.image}
-                onChange={handleInput}
-                placeholder="https://example.com/pizza.jpg"
-                className="mt-1 block w-full rounded-md border-gray-300 p-2 text-sm shadow-sm"
-              />
-            </div>
-
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700">
-                Upload Image
-              </label>
-              <input
-                type="file"
-                accept="image/*"
-                onChange={handleFileChange}
-                className="mt-1 block w-full rounded-md border-gray-300 p-2 text-sm shadow-sm"
-              />
-            </div>
-
-            {(form.preview || form.image) && (
-              <div className="md:col-span-3">
-                <div className="mb-1 text-sm font-medium text-gray-700">
-                  Preview
-                </div>
-                <img
-                  src={form.preview || form.image}
-                  className="h-44 w-full max-w-[520px] rounded-md object-cover ring-1 ring-black/10"
-                  alt="preview"
-                />
-              </div>
-            )}
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700">
-                Status
-              </label>
-              <select
-                name="status"
-                value={form.status}
-                onChange={handleInput}
-                className="mt-1 block w-full rounded-md border-gray-300 p-2 text-sm shadow-sm"
-              >
-                <option value="Active">Active</option>
-                <option value="Inactive">Inactive</option>
-              </select>
-            </div>
-          </div>
-
-          <div className="mt-4 flex justify-end gap-2">
-            {editingId ? (
-              <>
-                <button
-                  onClick={onUpdate}
-                  disabled={saving}
-                  className="rounded-md bg-green-600 px-4 py-2 text-sm text-white shadow-sm hover:bg-green-700 disabled:opacity-50"
-                >
-                  Update
-                </button>
-                <button
-                  onClick={onCancelEdit}
-                  className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm text-gray-700 shadow-sm hover:bg-gray-50"
-                >
-                  Cancel
-                </button>
-              </>
-            ) : (
-              <button
-                onClick={onSave}
-                disabled={saving}
-                className="rounded-md bg-orange-600 px-4 py-2 text-sm text-white shadow-sm hover:bg-orange-700 disabled:opacity-50"
-              >
-                Add Item
-              </button>
-            )}
-          </div>
-        </section>
-
-        {/* Toolbar */}
-        <div className="mb-4 flex flex-wrap items-center gap-2">
-          <input
-            placeholder="Search name/description/category…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-[320px] max-w-full rounded-md border p-2 text-sm"
-          />
-          <select
-            value={filterCat}
-            onChange={(e) => setFilterCat(e.target.value)}
-            className="rounded-md border p-2 text-sm"
+        {totalPages >= 2 && (
+          <button
+            onClick={() => setPage(second)}
+            className={`${baseBtn} ${page === second ? active : normal}`}
           >
-            <option value="">All categories</option>
-            {categories.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </select>
+            {second}
+          </button>
+        )}
 
-          <div className="ml-auto flex items-center gap-2">
-            <label className="text-sm text-gray-600">Per page</label>
-            <select
-              value={pageSize}
-              onChange={(e) => {
-                setPage(1);
-                setPageSize(Number(e.target.value));
-              }}
-              className="rounded-md border p-2 text-sm"
+        {showCurrent && page > 3 && (
+          <span className="px-1 text-slate-500">…</span>
+        )}
+
+        {showCurrent && (
+          <button className={`${baseBtn} ${active}`} disabled>
+            {page}
+          </button>
+        )}
+
+        {showCurrent && last - page > 1 && (
+          <span className="px-1 text-slate-500">…</span>
+        )}
+
+        {totalPages > 2 && (
+          <button
+            onClick={() => setPage(last)}
+            className={`${baseBtn} ${page === last ? active : normal}`}
+          >
+            {last}
+          </button>
+        )}
+
+        <button
+          onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+          disabled={page >= totalPages}
+          className={`${baseBtn} ${normal}`}
+        >
+          Next ›
+        </button>
+      </div>
+    );
+  };
+
+  return (
+    <main className="p-6">
+      <h1 className="text-xl font-semibold">Menu Management</h1>
+
+      {!mounted ? (
+        <p className="mt-2 text-slate-600" suppressHydrationWarning>
+          Loading…
+        </p>
+      ) : (
+        <>
+          {status === "loading" && <p className="mt-2">Loading session…</p>}
+          {!resolving && !restaurantIdResolved && (
+            <p className="mt-2 text-red-600">
+              Couldn’t resolve restaurant ID — check your session/role or
+              restaurant record.
+            </p>
+          )}
+          {resolving && (
+            <p className="mt-2 text-slate-600">Resolving restaurant ID…</p>
+          )}
+
+          {/* Toolbar */}
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <button
+              onClick={openCreate}
+              className="rounded-xl border border-black bg-black px-3 py-2 text-white"
             >
-              {PAGE_SIZE_OPTIONS.map((n) => (
-                <option key={n} value={n}>
-                  {n}
-                </option>
-              ))}
-            </select>
+              + New Item
+            </button>
 
-            {/* View-Umschalter */}
-            <div className="ml-2 flex items-center gap-2">
-              <label className="text-sm text-gray-600">View</label>
-              <select
-                value={viewMode}
-                onChange={(e) => setViewMode(e.target.value)}
-                className="rounded-md border p-2 text-sm"
-              >
-                <option value="grouped">Grouped by Category</option>
-                <option value="table">Table</option>
-              </select>
+            <div className="text-sm text-slate-600">
+              Total items: <strong>{filtered.length}</strong>
             </div>
 
-            <button
-              onClick={() => setReloadTick((t) => t + 1)}
-              className="rounded-md bg-gray-800 px-3 py-1.5 text-sm text-white"
-            >
-              Refresh
-            </button>
+            <div className="flex items-center gap-2">
+              <label htmlFor="search" className="text-sm text-slate-600">
+                Search:
+              </label>
+              <input
+                id="search"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Type to filter…"
+                className="min-w-[220px] rounded-lg border border-slate-200 px-3 py-1.5 outline-none"
+              />
+            </div>
+
+            <div className="ml-auto flex items-center gap-2">
+              <label className="text-sm text-slate-600">Page size:</label>
+              <select
+                value={pageSize}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value));
+                  setPage(1);
+                }}
+                className="rounded-lg border border-slate-200 px-3 py-1.5 outline-none"
+              >
+                {PAGE_SIZE_OPTIONS.map((n) => (
+                  <option key={n} value={n}>
+                    {n}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
-        </div>
 
-        {/* Table */}
-        {viewMode === "table" && (
-          <>
-            <section className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200 text-sm">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-                      Image
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-                      Name
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-                      Category
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-                      Price/Base
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-                      Sizes
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-                      Status
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200 bg-white">
-                  {loading ? (
-                    <tr>
-                      <td colSpan={7} className="p-6 text-center text-gray-500">
-                        Loading…
-                      </td>
-                    </tr>
-                  ) : dataForTable.length === 0 ? (
-                    <tr>
-                      <td colSpan={7} className="p-6 text-center text-gray-500">
-                        No items.
-                      </td>
-                    </tr>
-                  ) : (
-                    dataForTable.map((item) => (
-                      <tr key={item.id}>
-                        <td className="px-4 py-3">
-                          <img
-                            src={item.image}
-                            alt={item.name}
-                            className="h-10 w-10 rounded object-cover ring-1 ring-black/10"
-                          />
-                        </td>
-                        <td className="px-4 py-3 text-gray-700 font-medium">
-                          {item.name}
-                        </td>
-                        <td className="px-4 py-3 text-gray-700">
-                          {item.category || "—"}
-                        </td>
-                        <td className="px-4 py-3 text-gray-700">
-                          {item.price != null
-                            ? `${item.price.toFixed(2)}`
-                            : item.basePrice != null
-                            ? `${item.basePrice.toFixed(2)}`
-                            : "—"}
-                        </td>
-                        <td className="px-4 py-3 text-gray-700 max-w-[280px] truncate">
-                          {item.sizesUI || "—"}
-                        </td>
-                        <td className="px-4 py-3">
-                          <span
-                            className={`inline-flex rounded-full px-2 text-xs font-semibold leading-5 ${
-                              (item.status || "Active") === "Active"
-                                ? "bg-green-100 text-green-800"
-                                : "bg-red-100 text-red-800"
-                            }`}
-                          >
-                            {item.status || "Active"}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-right">
-                          <button
-                            onClick={() => onEdit(item)}
-                            className="ml-2 rounded-md bg-indigo-600 px-2 py-1 text-xs text-white hover:bg-indigo-700"
-                          >
-                            Edit
-                          </button>
-                          <button
-                            onClick={() => onDelete(item.id)}
-                            className="ml-2 rounded-md bg-red-600 px-2 py-1 text-xs text-white hover:bg-red-700"
-                          >
-                            Delete
-                          </button>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </section>
+          {loading && <p className="mt-4">Loading…</p>}
+          {err && <p className="mt-4 text-red-600">Error: {String(err)}</p>}
 
-            {/* Pagination (nur sinnvoll im Table-Mode) */}
-            <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
-              <div className="text-sm text-gray-700">
-                Page {page} / {totalPages}
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  disabled={isPrevDisabled}
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  className={`rounded-lg px-3 py-2 text-sm ring-1 ${
-                    isPrevDisabled
-                      ? "cursor-not-allowed bg-white/40 text-gray-400 ring-white/30"
-                      : "bg-white text-gray-800 ring-black/10 hover:bg-gray-50"
-                  }`}
-                >
-                  ← Prev
-                </button>
-
-                <div className="hidden items-center gap-1 md:flex">
-                  {paginateRange(page, totalPages).map((n, idx) =>
-                    n === "…" ? (
-                      <span key={`dots-${idx}`} className="px-2 text-gray-500">
-                        …
-                      </span>
-                    ) : (
-                      <button
-                        key={n}
-                        onClick={() => setPage(n)}
-                        className={`rounded-md px-3 py-2 text-sm ring-1 ${
-                          n === page
-                            ? "bg-orange-600 text-white ring-orange-700"
-                            : "bg-white text-gray-800 ring-black/10 hover:bg-gray-50"
+          {/* TABLE */}
+          <div className="mt-4 overflow-x-auto">
+            <table className="w-full border-collapse">
+              <thead>
+                <tr className="bg-slate-50">
+                  <th className="border-b border-slate-200 px-3 py-2 text-left text-xs text-slate-600">
+                    Name
+                  </th>
+                  <th className="border-b border-slate-200 px-3 py-2 text-left text-xs text-slate-600">
+                    Category
+                  </th>
+                  <th className="border-b border-slate-200 px-3 py-2 text-left text-xs text-slate-600">
+                    Price
+                  </th>
+                  <th className="border-b border-slate-200 px-3 py-2 text-left text-xs text-slate-600">
+                    Sizes
+                  </th>
+                  <th className="border-b border-slate-200 px-3 py-2 text-left text-xs text-slate-600">
+                    Add-ons
+                  </th>
+                  <th className="border-b border-slate-200 px-3 py-2 text-left text-xs text-slate-600">
+                    Status
+                  </th>
+                  <th className="border-b border-slate-200 px-3 py-2 text-left text-xs text-slate-600">
+                    Created
+                  </th>
+                  <th className="border-b border-slate-200 px-3 py-2 text-left text-xs text-slate-600">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {pageItems.map((i) => (
+                  <tr key={i._id} className="border-t border-slate-200">
+                    <td className="px-3 py-2 align-top">
+                      <div className="font-semibold">{i.name}</div>
+                      {i.description ? (
+                        <div className="text-xs text-slate-500">
+                          {i.description?.slice(0, 80)}
+                          {i.description?.length > 80 ? "…" : ""}
+                        </div>
+                      ) : null}
+                    </td>
+                    <td className="px-3 py-2 align-top">{i.category}</td>
+                    <td className="px-3 py-2 align-top">
+                      {typeof i.basePrice === "number"
+                        ? `€${i.basePrice.toFixed(2)}`
+                        : i.sizes?.length
+                        ? `€${minSizePrice(i.sizes).toFixed(2)}+`
+                        : "—"}
+                    </td>
+                    <td className="px-3 py-2 align-top">
+                      {Array.isArray(i.sizes) && i.sizes.length > 0 ? (
+                        <div className="flex flex-wrap gap-1.5">
+                          {i.sizes.slice(0, 4).map((s, idx) => (
+                            <span
+                              key={idx}
+                              className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs"
+                            >
+                              {s.label} · €{Number(s.price).toFixed(2)}
+                            </span>
+                          ))}
+                          {i.sizes.length > 4 && (
+                            <span className="text-xs text-slate-500">
+                              +{i.sizes.length - 4} more
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        "—"
+                      )}
+                    </td>
+                    <td className="px-3 py-2 align-top">
+                      {Array.isArray(i.addOns) && i.addOns.length > 0 ? (
+                        <div className="flex flex-wrap gap-1.5">
+                          {i.addOns.slice(0, 4).map((a, idx) => (
+                            <span
+                              key={idx}
+                              className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs"
+                            >
+                              {a.name} · €{Number(a.price).toFixed(2)}
+                            </span>
+                          ))}
+                          {i.addOns.length > 4 && (
+                            <span className="text-xs text-slate-500">
+                              +{i.addOns.length - 4} more
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        "—"
+                      )}
+                    </td>
+                    <td className="px-3 py-2 align-top">
+                      <span
+                        className={`rounded-full border px-2 py-0.5 text-xs ${
+                          i.status === "available"
+                            ? "border-cyan-100 bg-cyan-50"
+                            : "border-amber-100 bg-amber-50"
                         }`}
                       >
-                        {n}
-                      </button>
-                    )
-                  )}
+                        {i.status}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2 align-top">
+                      {i.createdAt
+                        ? new Date(i.createdAt).toLocaleString()
+                        : "—"}
+                    </td>
+                    <td className="px-3 py-2 align-top">
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => openEdit(i)}
+                          className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => handleDelete(i)}
+                          className="rounded-lg border border-red-500 bg-red-500 px-3 py-1.5 text-sm text-white"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+                {!loading && pageItems.length === 0 && (
+                  <tr>
+                    <td
+                      colSpan={8}
+                      className="px-3 py-4 text-center text-slate-500"
+                    >
+                      No items
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Pagination */}
+          <Pager />
+
+          {/* Modal Form */}
+          {showForm && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 ">
+              <div className="w-full max-w-4xl overflow-hidden rounded-2xl bg-white shadow-xl max-h-[90vh] overflow-y-auto">
+                <div className="flex items-center justify-between border-b border-slate-200 p-4">
+                  <h2 className="font-semibold">
+                    {editing ? "Edit Item" : "New Item"}
+                  </h2>
+                  <button
+                    onClick={() => setShowForm(false)}
+                    className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm"
+                  >
+                    Close
+                  </button>
                 </div>
 
-                <button
-                  disabled={isNextDisabled}
-                  onClick={() => setPage((p) => p + 1)}
-                  className={`rounded-lg px-3 py-2 text-sm ring-1 ${
-                    isNextDisabled
-                      ? "cursor-not-allowed bg-white/40 text-gray-400 ring-white/30"
-                      : "bg-white text-gray-800 ring-black/10 hover:bg-gray-50"
-                  }`}
-                >
-                  Next →
-                </button>
+                <form onSubmit={handleSubmit} className="grid gap-3 p-4">
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                    <div>
+                      <label className="mb-1 block text-xs text-slate-500">
+                        Name
+                      </label>
+                      <input
+                        value={fName}
+                        onChange={(e) => setFName(e.target.value)}
+                        required
+                        className="w-full rounded-lg border border-slate-200 px-3 py-2 outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs text-slate-500">
+                        Category
+                      </label>
+                      <select
+                        value={fCategory}
+                        onChange={(e) => setFCategory(e.target.value)}
+                        className="w-full rounded-lg border border-slate-200 px-3 py-2 outline-none"
+                      >
+                        {CATEGORY_ENUM.map((c) => (
+                          <option key={c} value={c}>
+                            {c}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="mb-1 block text-xs text-slate-500">
+                      Description
+                    </label>
+                    <textarea
+                      value={fDescription}
+                      onChange={(e) => setFDescription(e.target.value)}
+                      className="min-h-[80px] w-full rounded-lg border border-slate-200 px-3 py-2 outline-none"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                    <div>
+                      <label className="mb-1 block text-xs text-slate-500">
+                        Base Price (optional)
+                      </label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={fBasePrice}
+                        onChange={(e) => setFBasePrice(e.target.value)}
+                        placeholder="e.g., 59.90"
+                        className="w-full rounded-lg border border-slate-200 px-3 py-2 outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs text-slate-500">
+                        Status
+                      </label>
+                      <select
+                        value={fStatus}
+                        onChange={(e) => setFStatus(e.target.value)}
+                        className="w-full rounded-lg border border-slate-200 px-3 py-2 outline-none"
+                      >
+                        {STATUS_ENUM.map((s) => (
+                          <option key={s} value={s}>
+                            {s}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Preset Sizes */}
+                  <div>
+                    <div className="mb-1 text-xs font-semibold text-slate-500">
+                      Sizes (presets)
+                    </div>
+                    <div className="grid gap-2">
+                      {PRESET_SIZES.map((lab) => (
+                        <div
+                          key={lab}
+                          className="grid grid-cols-[minmax(140px,240px)_1fr] items-center gap-2"
+                        >
+                          <label className="flex items-center gap-2 text-sm">
+                            <input
+                              type="checkbox"
+                              checked={!!presetEnabled[lab]}
+                              onChange={() =>
+                                setPresetEnabled((p) => ({
+                                  ...p,
+                                  [lab]: !p[lab],
+                                }))
+                              }
+                            />
+                            {lab}
+                          </label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            placeholder="Price"
+                            value={presetPrices[lab]}
+                            onChange={(e) =>
+                              setPresetPrices((p) => ({
+                                ...p,
+                                [lab]: e.target.value,
+                              }))
+                            }
+                            className={`w-full rounded-lg border px-3 py-2 outline-none ${
+                              presetEnabled[lab]
+                                ? "border-slate-200"
+                                : "border-slate-100 opacity-60"
+                            }`}
+                            disabled={!presetEnabled[lab]}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Custom Sizes */}
+                  <div>
+                    <div className="mb-1 flex items-center justify-between">
+                      <label className="text-xs text-slate-500">
+                        Additional sizes (optional)
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setCustomSizes((p) => [
+                            ...p,
+                            { label: "", price: "" },
+                          ])
+                        }
+                        className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm"
+                      >
+                        + Add custom
+                      </button>
+                    </div>
+                    <div className="grid gap-2">
+                      {customSizes.map((s, idx) => (
+                        <div
+                          key={idx}
+                          className="grid grid-cols-[1fr_1fr_96px] items-center gap-2"
+                        >
+                          <input
+                            placeholder="Label"
+                            value={s.label}
+                            onChange={(e) =>
+                              setCustomSizes((prev) =>
+                                prev.map((x, i) =>
+                                  i === idx
+                                    ? { ...x, label: e.target.value }
+                                    : x
+                                )
+                              )
+                            }
+                            className="w-full rounded-lg border border-slate-200 px-3 py-2 outline-none"
+                          />
+                          <input
+                            type="number"
+                            step="0.01"
+                            placeholder="Price"
+                            value={s.price}
+                            onChange={(e) =>
+                              setCustomSizes((prev) =>
+                                prev.map((x, i) =>
+                                  i === idx
+                                    ? { ...x, price: e.target.value }
+                                    : x
+                                )
+                              )
+                            }
+                            className="w-full rounded-lg border border-slate-200 px-3 py-2 outline-none"
+                          />
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setCustomSizes((prev) =>
+                                prev.filter((_, i) => i !== idx)
+                              )
+                            }
+                            className="rounded-lg border border-red-500 bg-red-500 px-3 py-1.5 text-sm text-white"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      ))}
+                      {customSizes.length === 0 && (
+                        <p className="text-xs text-slate-500">
+                          Use this if you need sizes other than
+                          Small/Medium/Large.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Add-ons */}
+                  <div>
+                    <div className="mb-1 flex items-center justify-between">
+                      <label className="text-xs text-slate-500">
+                        Add-ons (optional)
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setAddOns((p) => [...p, { name: "", price: "" }])
+                        }
+                        className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm"
+                      >
+                        + Add
+                      </button>
+                    </div>
+                    <div className="grid gap-2">
+                      {addOns.map((a, idx) => (
+                        <div
+                          key={idx}
+                          className="grid grid-cols-[1fr_1fr_96px] items-center gap-2"
+                        >
+                          <input
+                            placeholder="Name"
+                            value={a.name}
+                            onChange={(e) =>
+                              setAddOns((prev) =>
+                                prev.map((x, i) =>
+                                  i === idx ? { ...x, name: e.target.value } : x
+                                )
+                              )
+                            }
+                            className="w-full rounded-lg border border-slate-200 px-3 py-2 outline-none"
+                          />
+                          <input
+                            type="number"
+                            step="0.01"
+                            placeholder="Price"
+                            value={a.price}
+                            onChange={(e) =>
+                              setAddOns((prev) =>
+                                prev.map((x, i) =>
+                                  i === idx
+                                    ? { ...x, price: e.target.value }
+                                    : x
+                                )
+                              )
+                            }
+                            className="w-full rounded-lg border border-slate-200 px-3 py-2 outline-none"
+                          />
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setAddOns((prev) =>
+                                prev.filter((_, i) => i !== idx)
+                              )
+                            }
+                            className="rounded-lg border border-red-500 bg-red-500 px-3 py-1.5 text-sm text-white"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      ))}
+                      {addOns.length === 0 && (
+                        <p className="text-xs text-slate-500">
+                          Add optional extras customers can select.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end gap-2 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowForm(false)}
+                      className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="rounded-lg border border-black bg-black px-3 py-1.5 text-sm text-white"
+                    >
+                      {editing ? "Update" : "Create"}
+                    </button>
+                  </div>
+                </form>
               </div>
             </div>
-          </>
-        )}
-
-        {/* Grouped by Category */}
-        {viewMode === "grouped" && (
-          <section className="mt-8">
-            {Array.from(
-              new Set(filteredAll.map((i) => i.category).filter(Boolean))
-            )
-              .sort()
-              .map((cat) => {
-                const list = filteredAll.filter((i) => i.category === cat);
-                return (
-                  <div key={cat} className="mb-10">
-                    <h3 className="mb-3 text-xl font-semibold">{cat}</h3>
-                    {list.length === 0 ? (
-                      <div className="text-sm text-gray-500">
-                        No items in this category.
-                      </div>
-                    ) : (
-                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                        {list.map((i) => (
-                          <div
-                            key={`group-card-${i.id}`}
-                            className="overflow-hidden rounded-2xl bg-white shadow ring-1 ring-black/5"
-                          >
-                            <img
-                              src={i.image}
-                              alt={i.name}
-                              className="h-40 w-full object-cover"
-                            />
-                            <div className="p-4">
-                              <div className="text-base font-extrabold">
-                                {i.name}
-                              </div>
-                              <p className="mt-1 line-clamp-2 text-xs text-gray-600">
-                                {i.description}
-                              </p>
-                              <div className="mt-3 flex items-center justify-between">
-                                <span className="rounded bg-slate-900 px-2 py-1 text-xs text-white">
-                                  {i.price != null
-                                    ? `${i.price.toFixed(2)} €`
-                                    : i.basePrice != null
-                                    ? `${i.basePrice.toFixed(2)} €`
-                                    : "—"}
-                                </span>
-                                {Array.isArray(i.sizes) &&
-                                i.sizes.length > 0 ? (
-                                  <select className="rounded-md border px-2 py-1 text-xs">
-                                    {i.sizes.map((s) => {
-                                      const pv = Number(s.price);
-                                      return (
-                                        <option key={s.label} value={s.label}>
-                                          {s.label}
-                                          {Number.isFinite(pv)
-                                            ? ` (${pv.toFixed(2)} €)`
-                                            : ""}
-                                        </option>
-                                      );
-                                    })}
-                                  </select>
-                                ) : (
-                                  <span className="text-xs text-gray-500">
-                                    Single
-                                  </span>
-                                )}
-                              </div>
-                              <div className="mt-3 flex gap-2">
-                                <button
-                                  onClick={() => onEdit(i)}
-                                  className="flex-1 rounded bg-indigo-600 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-700"
-                                >
-                                  Edit
-                                </button>
-                                <button
-                                  onClick={() => onDelete(i.id)}
-                                  className="flex-1 rounded bg-red-600 px-3 py-2 text-xs font-semibold text-white hover:bg-red-700"
-                                >
-                                  Delete
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-          </section>
-        )}
-      </div>
-    </div>
+          )}
+        </>
+      )}
+    </main>
   );
 }

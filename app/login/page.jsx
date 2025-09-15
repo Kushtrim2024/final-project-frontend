@@ -60,8 +60,34 @@ function LoginPage() {
         setLoginError(data.message || "Login failed");
         return;
       }
-      localStorage.setItem("token", data.token);
-      router.push("/usermanagement");
+
+      // ✅ Extract token & user like in xxx.jsx
+      const token = data?.token || data?.accessToken || null;
+      const user = data?.user || data?.data || {};
+
+      if (!token) {
+        setLoginError("Login seems successful but no token was returned.");
+        return;
+      }
+
+      // Normalize minimal fields
+      const id = user?.id || user?._id || user?.userId || null;
+      const role = user?.role || "user";
+      const name =
+        user?.name || user?.fullName || user?.username || email || null;
+      const mail = user?.email || email || null;
+
+      // ✅ Same storage shape as xxx.jsx
+      localStorage.setItem("token", token);
+      localStorage.setItem("role", role);
+      localStorage.setItem(
+        "auth",
+        JSON.stringify({ token, user: { id, role, name, email: mail } })
+      );
+      // Convenience: direct username access (header için kolay)
+      localStorage.setItem("username", name);
+
+      router.push("/");
     } catch (err) {
       setLoginError("Server error. Please try again.");
     } finally {

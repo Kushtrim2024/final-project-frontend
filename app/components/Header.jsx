@@ -1,6 +1,5 @@
 "use client";
-
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useSearchParams, usePathname } from "next/navigation";
@@ -49,6 +48,20 @@ function slugify(text) {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/(^-|-$)+/g, "");
 }
+/** ---------- Cart helpers (localStorage) ---------- */
+const CART_KEY = "liefrik_cart_v1";
+
+function readCart() {
+  try {
+    if (typeof window === "undefined") return [];
+    const raw = localStorage.getItem(CART_KEY);
+    const arr = raw ? JSON.parse(raw) : [];
+    return Array.isArray(arr) ? arr : [];
+  } catch {
+    return [];
+  }
+}
+
 function safeJson(raw) {
   try {
     return JSON.parse(raw);
@@ -231,7 +244,58 @@ export default function Header() {
   const restMenuRef = useRef(null);
 
   const [showMobileMenu, setShowMobileMenu] = useState(false);
+  // CART icon counter--------------------------------------------------
+  const [cartItems, setCartItems] = useState([]);
+  const cartCount = useMemo(() => {
+    return Array.isArray(cartItems)
+      ? cartItems.reduce((sum, it) => sum + (Number(it.qty) || 1), 0)
+      : 0;
+  }, [cartItems]);
 
+  useEffect(() => {
+    setCartItems(readCart());
+
+    function handleStorage(e) {
+      if (e.key === CART_KEY) {
+        try {
+          const arr = e.newValue ? JSON.parse(e.newValue) : [];
+          setCartItems(Array.isArray(arr) ? arr : []);
+        } catch {
+          setCartItems([]);
+        }
+      }
+    }
+    function handleFocus() {
+      setCartItems(readCart());
+    }
+    function handleCartChange() {
+      setCartItems(readCart());
+    }
+
+    window.addEventListener("storage", handleStorage);
+    window.addEventListener("focus", handleFocus);
+    window.addEventListener("cart:change", handleCartChange);
+    return () => {
+      window.removeEventListener("storage", handleStorage);
+      window.removeEventListener("focus", handleFocus);
+      window.removeEventListener("cart:change", handleCartChange);
+    };
+  }, []);
+  useEffect(() => {
+    if (typeof window === "undefined" || window.__cartPatched) return;
+    window.__cartPatched = true;
+
+    const originalSetItem = localStorage.setItem;
+    localStorage.setItem = function (key, value) {
+      originalSetItem.apply(this, arguments);
+      if (key === "liefrik_cart_v1") {
+        requestAnimationFrame(() => {
+          window.dispatchEvent(new Event("cart:change"));
+        });
+      }
+    };
+  }, []);
+  // ------------------------------------------------------
   useEffect(() => setActive(catFromUrl || defaultActive), [catFromUrl]);
 
   const updateIndicator = (slug) => {
@@ -357,25 +421,33 @@ export default function Header() {
     </span>
   );
 
-  // Prevent background scroll when mobile menu is open
+  // Prevent background scroll when mobile menu is open (fixed)
   useEffect(() => {
-    if (showMobileMenu) {
-      document.body.style.overflow = "hidden";
-    } else {
-      document.body.style.overflow = "hidde";
-    }
+    document.body.style.overflow = showMobileMenu ? "hidden" : "";
     return () => {
       document.body.style.overflow = "";
     };
   }, [showMobileMenu]);
 
+  // NEW: Auto-close mobile menu when viewport exceeds 1000px (runs on resize and once on mount)
+  useEffect(() => {
+    function autoCloseOnWide() {
+      if (window.innerWidth > 1000) {
+        setShowMobileMenu(false);
+      }
+    }
+    window.addEventListener("resize", autoCloseOnWide);
+    autoCloseOnWide(); // ensure correct state on first render
+    return () => window.removeEventListener("resize", autoCloseOnWide);
+  }, []);
+
   return (
-    <header className="fixed top-0 z-50 flex flex-col w-full h-36 max-[700px]:h-44 transition-colors duration-300 bg-orange-200/25 backdrop-blur-md shadow-md ">
-      <div className="relative w-full h-32 flex items-center justify-center mt-2 mx-auto  max-[100px]:mt-10">
+    <header className="fixed top-0 z-50 flex flex-col w-full h-36 transition-colors duration-300 bg-orange-200/25 backdrop-blur-md shadow-md text-sm ">
+      <div className="relative w-full h-32 flex items-center justify-center mt-2 mx-auto max-[100px]:mt-10 ">
         {/* Mobile: Hamburger */}
         <button
-          className="absolute right-3 top-4 p-2 rounded-xl bg-white/70 shadow max-[900px]:flex hidden items-center justify-center focus:outline-none focus:ring-2 focus:ring-orange-400"
-          aria-label="Open menu "
+          className="absolute right-3 top-4 p-2 rounded-xl bg-white/70 shadow max-[1000px]:flex hidden items-center justify-center focus:outline-none focus:ring-2 focus:ring-orange-400"
+          aria-label="Open menu"
           aria-expanded={showMobileMenu}
           aria-controls="mobile-menu"
           onClick={() => setShowMobileMenu(true)}
@@ -384,14 +456,14 @@ export default function Header() {
         </button>
 
         {/* Logo */}
-        <section className="absolute bottom-[-15px] left-25 h-36 w-34 flex items-center justify-left max-[1000px]:scale-85 max-[1000px]:left-[15px] max-[650px]:scale-70 max-[600px]:left-[-5px]  max-[600px]:top-[-15px]">
+        <section className="absolute bottom-[-15px] left-15 h-36 w-34 flex items-center justify-left max-[1000px]:scale-85 max-[1000px]:left-[15px] max-[650px]:scale-70 max-[600px]:left-[-5px] max-[600px]:top-[-15px]">
           <Link href="/">
             <Image
               src="/logo.png"
               alt="Liefrik Logo"
               width={140}
               height={140}
-              className="h-22 w-22 transition-all duration-200 transform hover:translate-y-1 cursor-pointer "
+              className="h-22 w-22 transition-all duration-200 transform hover:translate-y-1 cursor-pointer  "
             />
           </Link>
         </section>
@@ -399,15 +471,15 @@ export default function Header() {
         {/* categories (hidden on mobile) */}
         <nav
           aria-label="Categories"
-          className="relative flex-wrap justify-center max-[1200px]:hidden"
+          className="relative flex-wrap justify-center max-[1000px]:hidden   "
         >
           <ul
             ref={railRef}
-            className="flex gap-10 md:gap-12 justify-center relative px-4"
+            className="flex gap-10  max-[1300px]:gap-6 max-[1100px]:gap-6 justify-center relative px-4"
           >
             <span
               aria-hidden
-              className="absolute -bottom-1 h-[2px] bg-red-400 rounded-full transition-all duration-300"
+              className="absolute -bottom-1 h-[2px] bg-red-400 rounded-full transition-all duration-300 "
               style={{ left: indicator.left, width: indicator.width }}
             />
             {CATEGORIES.map((c) => {
@@ -432,7 +504,7 @@ export default function Header() {
                       alt={c.label}
                       width={110}
                       height={110}
-                      className="h-16 w-16 object-contain mb-1 drop-shadow-md transition-transform group-hover:scale-110"
+                      className="h-16 w-16 object-contain mb-1 drop-shadow-md transition-transform group-hover:scale-110 max-[1700px]:h-12 max-[1700px]:w-12 max-[1550px]:h-10 max-[1550px]:w-10  max-[1100px]:h-8 max-[1100px]:w-8"
                     />
                     <span className="text-xs font-medium tracking-tight">
                       {c.label}
@@ -445,20 +517,20 @@ export default function Header() {
         </nav>
 
         {/* right actions (hidden on mobile) */}
-        <section className="absolute right-20 bottom-15 space-x-2 lg:w-70 sm:w-40 flex items-center justify-end mr-2 max-[700px]:hidden">
-          {/* Restaurant owner */}
+        <section className="absolute right-0 bottom-5 space-x-2 w-60  flex flex-col items-start justify-center max-[1000px]:hidden gap-2 max-[1700]:text-xs max-[1700]:w-45   ">
+          {/* Restaurant owner----------------header---------------------------------------------------------- */}
           {authChecked ? (
-            role === "restaurantborder borderborder border" ? (
+            role === "restaurant" ? (
               <div className="relative" ref={restMenuRef}>
                 <button
-                  className="text-gray-800 hover:text-red-500 transition-all duration-200 transform hover:translate-y-1 flex items-center cursor-pointer rounded-md px-2 py-1 bg-white/50"
+                  className="text-gray-800 hover:text-red-500 transition-all duration-200 transform hover:translate-y-1 flex items-center cursor-pointer rounded-md py-1"
                   onClick={() => {
                     setShowRestaurantMenu((v) => !v);
                     setShowUserMenu(false);
                   }}
                 >
                   <FontAwesomeIcon icon={faStore} className="h-4 w-4 mr-1" />
-                  <span className="hidden min-[1050px]:block font-medium">
+                  <span className="hidden min-[1000px]:block font-medium">
                     {displayName || "Owner"}
                   </span>
                   <FontAwesomeIcon
@@ -467,17 +539,17 @@ export default function Header() {
                   />
                 </button>
                 {showRestaurantMenu && (
-                  <div className="absolute right-0 mt-2 w-48 rounded-lg bg-white shadow-lg ring-1 ring-black/10 overflow-hidden">
+                  <div className="absolute right-0 mt-2 w-48 rounded-lg bg-white shadow-lg ring-1 ring-black/10 overflow-hidden z-99 ">
                     <Link
                       href={settingsHref}
-                      className="flex items-center gap-2 px-3 py-2 text-sm text-gray-800 hover:bg-gray-50"
+                      className="flex items-center gap-2 px-3 py-2 text-xs text-gray-800 hover:bg-gray-50"
                       onClick={() => setShowRestaurantMenu(false)}
                     >
                       <FontAwesomeIcon icon={faGear} className="h-4 w-4" />
                       <span>Settings</span>
                     </Link>
                     <button
-                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50"
+                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-red-600 hover:bg-red-50"
                       onClick={handleLogout}
                     >
                       <FontAwesomeIcon
@@ -495,7 +567,7 @@ export default function Header() {
                 className="text-gray-800 hover:text-red-500 transition-all duration-200 transform hover:translate-y-1 flex items-center cursor-pointer"
               >
                 <FontAwesomeIcon icon={faStore} className="h-4 w-4 mr-0.5" />
-                <span className="hidden min-[1050px]:block">
+                <span className="hidden min-[1000px]:block">
                   Partner with us
                 </span>
               </Link>
@@ -503,7 +575,7 @@ export default function Header() {
           ) : (
             <div className="text-gray-800 flex items-center">
               <FontAwesomeIcon icon={faStore} className="h-4 w-4 mr-1" />
-              <span className="hidden min-[1050px]:block">
+              <span className="hidden min-[1000px]:block">
                 Loading
                 <LoadingDots />
               </span>
@@ -515,14 +587,14 @@ export default function Header() {
             role === "user" ? (
               <div className="relative" ref={userMenuRef}>
                 <button
-                  className="text-gray-800 hover:text-red-500 transition-all duration-200 transform hover:translate-y-1 flex items-center cursor-pointer rounded-md px-2 py-1 bg-white/50"
+                  className="text-gray-800 hover:text-red-500 transition-all duration-200 transform hover:translate-y-1 flex items-center cursor-pointer rounded-md py-1"
                   onClick={() => {
                     setShowUserMenu((v) => !v);
                     setShowRestaurantMenu(false);
                   }}
                 >
                   <FontAwesomeIcon icon={faUser} className="h-5 w-5 mr-1" />
-                  <span className="hidden min-[1050px]:block font-medium">
+                  <span className="hidden min-[1000px]:block font-medium">
                     {displayName || "Account"}
                   </span>
                   <FontAwesomeIcon
@@ -531,17 +603,17 @@ export default function Header() {
                   />
                 </button>
                 {showUserMenu && (
-                  <div className="absolute right-0 mt-2 w-48 rounded-lg bg-white shadow-lg ring-1 ring-black/10 overflow-hidden">
+                  <div className="absolute left-0 right-0 mt-1 w-28 rounded-lg bg-white shadow-lg ring-1 ring-black/10 overflow-hidden z-99">
                     <Link
                       href={settingsHref}
-                      className="flex items-center gap-2 px-3 py-2 text-sm text-gray-800 hover:bg-gray-50"
+                      className="flex items-center gap-2 px-3 py-2 text-xs text-gray-800 hover:bg-gray-50"
                       onClick={() => setShowUserMenu(false)}
                     >
                       <FontAwesomeIcon icon={faGear} className="h-4 w-4" />
                       <span>Settings</span>
                     </Link>
                     <button
-                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50"
+                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-red-600 hover:bg-red-50"
                       onClick={handleLogout}
                     >
                       <FontAwesomeIcon
@@ -558,14 +630,14 @@ export default function Header() {
                 href="/login"
                 className="text-gray-800 hover:text-red-500 transition-all duration-200 transform hover:translate-y-1 flex items-center cursor-pointer"
               >
-                <FontAwesomeIcon icon={faUser} className="h-5 w-5 mr-0.5" />
-                <span className="hidden min-[1050px]:block">Account</span>
+                <FontAwesomeIcon icon={faUser} className="h-5 w-5 mr-1" />
+                <span className="hidden min-[1000px]:block">Account</span>
               </Link>
             )
           ) : (
             <div className="text-gray-800 flex items-center">
               <FontAwesomeIcon icon={faUser} className="h-5 w-5 mr-1" />
-              <span className="hidden min-[1050px]:block">
+              <span className="hidden min-[1000px]:block">
                 Loading
                 <LoadingDots />
               </span>
@@ -574,11 +646,19 @@ export default function Header() {
 
           {/* cart */}
           <Link
-            href="/cart"
-            className="text-gray-800 hover:text-red-500 transition-all duration-200 transform hover:translate-y-1 flex items-center cursor-pointer"
+            href="/checkout"
+            className="text-gray-800 hover:text-red-500 transition-all duration-200 transform hover:translate-y-1 flex items-center cursor-pointer mt-1"
             aria-label="Cart"
           >
-            <FontAwesomeIcon icon={faShoppingCart} className="h-5 w-5 pr-0.5" />
+            <span className="relative inline-block pr-0.5 ">
+              <FontAwesomeIcon icon={faShoppingCart} className="h-5 w-5" />
+              <span className="absolute -top-2 -right-2 min-w-4 h-4 px-1 rounded-full text-[10px] leading-4 text-red-400 font-bold ">
+                {cartCount}
+              </span>
+            </span>
+            <span className="hidden min-[1000px]:block ml-1 ">
+              Shopping Cart
+            </span>
           </Link>
         </section>
       </div>
@@ -600,10 +680,9 @@ export default function Header() {
               <Image
                 src="/logo.png"
                 alt="Liefrik Logo"
-                width={36}
-                height={36}
+                width={50}
+                height={50}
               />
-              <span className="font-semibold text-lg">Liefrik</span>
             </Link>
             <button
               className="p-2 rounded-xl bg-white/70 shadow focus:outline-none focus:ring-2 focus:ring-orange-400"
@@ -618,11 +697,11 @@ export default function Header() {
           </div>
 
           {/* Sections */}
-          <div className="overflow-y-auto h-[calc(35vh-90px)] bg-white">
+          <div className="overflow-y-auto h-96 bg-white">
             {/* Categories */}
             <div className="px-4 py-3">
-              <h2 className="text-sm font-semibold  text-gray-700 mb-2">
-                Kategorien
+              <h2 className="text-sm font-semibold text-gray-700 mb-2">
+                Category
               </h2>
               <ul className="flex-1/5 gap-3">
                 {CATEGORIES.map((c) => {
@@ -643,9 +722,9 @@ export default function Header() {
                           alt={c.label}
                           width={48}
                           height={48}
-                          className="h-12 w-12 object-contain"
+                          className="h-10 w-10 object-contain"
                         />
-                        <span className="mt-1 text-[20px] font-medium text-gray-800">
+                        <span className="mt-1 text-[16px] font-medium text-gray-800">
                           {c.label}
                         </span>
                       </Link>
@@ -658,21 +737,29 @@ export default function Header() {
             {/* Account / Owner */}
             <div className="px-4 py-3 border-t border-orange-100">
               <h2 className="text-sm font-semibold text-gray-700 mb-2">
-                Konto
+                Account
               </h2>
               {!authChecked ? (
                 <div className="text-gray-700 text-sm flex items-center">
-                  Lädt <LoadingDots />
+                  Loading <LoadingDots />
                 </div>
-              ) : role === "menumanagement" ? (
+              ) : role === "restaurant" ? (
                 <div className="flex flex-col gap-2">
+                  {/* NEW: Signed-in name (Restaurant) */}
+                  <div className="flex items-center gap-2 mb-1 text-gray-800">
+                    <FontAwesomeIcon icon={faStore} className="h-4 w-4" />
+                    <span className="font-medium">
+                      {displayName || "Owner"}
+                    </span>
+                  </div>
+
                   <Link
                     href={settingsHref}
                     className="flex items-center gap-2 rounded-lg bg-white px-3 py-2 shadow-sm border border-orange-100"
                     onClick={() => setShowMobileMenu(false)}
                   >
                     <FontAwesomeIcon icon={faGear} className="h-4 w-4" />
-                    <span>Einstellungen</span>
+                    <span>Settings</span>
                   </Link>
                   <button
                     className="flex items-center gap-2 rounded-lg bg-red-50 text-red-700 px-3 py-2 shadow-sm border border-red-100"
@@ -687,13 +774,21 @@ export default function Header() {
                 </div>
               ) : role === "user" ? (
                 <div className="flex flex-col gap-2">
+                  {/* NEW: Signed-in name (User) */}
+                  <div className="flex items-center gap-2 mb-1 text-gray-800">
+                    <FontAwesomeIcon icon={faUser} className="h-4 w-4" />
+                    <span className="font-medium">
+                      {displayName || "Account"}
+                    </span>
+                  </div>
+
                   <Link
                     href={settingsHref}
                     className="flex items-center gap-2 rounded-lg bg-white px-3 py-2 shadow-sm border border-orange-100"
                     onClick={() => setShowMobileMenu(false)}
                   >
                     <FontAwesomeIcon icon={faGear} className="h-4 w-4" />
-                    <span>Einstellungen</span>
+                    <span>Settings</span>
                   </Link>
                   <button
                     className="flex items-center gap-2 rounded-lg bg-red-50 text-red-700 px-3 py-2 shadow-sm border border-red-100"
@@ -722,7 +817,7 @@ export default function Header() {
                     onClick={() => setShowMobileMenu(false)}
                   >
                     <FontAwesomeIcon icon={faStore} className="h-4 w-4 mr-1" />
-                    Test Owner
+                    Partner with us
                   </Link>
                 </div>
               )}
@@ -731,15 +826,24 @@ export default function Header() {
             {/* Cart */}
             <div className="px-4 py-3 border-t border-orange-100">
               <Link
-                href="/cart"
+                href="/checkout"
                 className="flex items-center justify-between rounded-xl bg-white px-4 py-3 shadow-sm border border-orange-100 active:scale-[0.99]"
                 onClick={() => setShowMobileMenu(false)}
               >
                 <div className="flex items-center gap-3 border border-pink-100 rounded-full px-3 py-1 bg-pink-100">
-                  <FontAwesomeIcon icon={faShoppingCart} className="h-5 w-5" />
-                  <span>Warenkorb</span>
+                  <span className="relative inline-block">
+                    <FontAwesomeIcon
+                      icon={faShoppingCart}
+                      className="h-5 w-5"
+                    />
+                    <span className="absolute -top-1.5 -right-2 min-w-4 h-4 px-1 rounded-full text-[10px] leading-4 text-center text-red-500 font-bold ">
+                      {cartCount}
+                    </span>
+                  </span>
+
+                  <span>Shopping Cart</span>
                 </div>
-                <span className="text-xs text-gray-500">öffnen</span>
+                <span className="text-xs text-gray-500">Open</span>
               </Link>
             </div>
           </div>
