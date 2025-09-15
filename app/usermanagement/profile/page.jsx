@@ -53,6 +53,11 @@ export default function ProfilePage() {
         if (!res.ok) throw new Error(`Load error (${res.status})`);
         const data = await res.json();
         setUser(data);
+        if (data) {
+          // ذخیره در localStorage برای Checkout
+          localStorage.setItem("checkoutName", data.name || "");
+          localStorage.setItem("checkoutPhone", data.phone || "");
+        }
       } catch (e) {
         setMsg(e.message || "Could not load profile.");
       } finally {
