@@ -426,6 +426,7 @@ function RatingItem({ r, canEdit, onEdit, onDelete }) {
     r?.userId?.name ||
     r?.userId?.email ||
     (typeof r?.userId === "string" ? r.userId : "User");
+
   return (
     <div className="rounded-xl bg-white p-4 ring-1 ring-black/5">
       <div className="flex items-start justify-between">
@@ -439,10 +440,22 @@ function RatingItem({ r, canEdit, onEdit, onDelete }) {
           <p className="mt-1 text-sm text-slate-700 whitespace-pre-wrap">
             {r.comment || "—"}
           </p>
+
+          {/* Owner Response */}
+          {r.ownerResponse?.text && (
+            <div className="mt-2 p-2 rounded bg-gray-50 border-l-4 border-green-500">
+              <p className="text-xs text-gray-600 font-semibold">
+                Owner Response:
+              </p>
+              <p className="text-sm text-gray-800">{r.ownerResponse.text}</p>
+            </div>
+          )}
+
           <div className="mt-2 text-xs text-slate-500">
             {who} • {dtISO}
           </div>
         </div>
+
         {canEdit && (
           <div className="ml-3 flex gap-2">
             <button
@@ -463,6 +476,7 @@ function RatingItem({ r, canEdit, onEdit, onDelete }) {
     </div>
   );
 }
+
 
 /** RatingsSection (unchanged) */
 function RatingsSection({ restaurantId }) {

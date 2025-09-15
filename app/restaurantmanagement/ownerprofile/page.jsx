@@ -16,7 +16,7 @@ export default function ProfilePage() {
   });
   const [error, setError] = useState(null);
 
-  // hilft beim sicheren JSON-Parse (falls Server HTML-Fehler schickt)
+  // Hilft beim sicheren JSON-Parse
   const readJsonSafe = async (res) => {
     const ct = res.headers.get("content-type") || "";
     if (ct.includes("application/json")) {
@@ -34,6 +34,7 @@ export default function ProfilePage() {
     }
   };
 
+  // Fetch Profile vom Backend
   useEffect(() => {
     const ac = new AbortController();
 
@@ -64,7 +65,6 @@ export default function ProfilePage() {
           );
         }
 
-        // Normalisieren: unterstütze { owner, restaurant } oder flache Struktur
         const owner = data?.owner ?? data ?? {};
         const addr =
           owner.address && typeof owner.address === "object"
@@ -91,6 +91,7 @@ export default function ProfilePage() {
     return () => ac.abort();
   }, []);
 
+  // Form-Handling
   const handleChange = (e) => {
     const { name, value } = e.target;
     if (name.startsWith("address.")) {
@@ -104,11 +105,36 @@ export default function ProfilePage() {
     }
   };
 
-  // Lokales Speichern ohne PUT
-  const handleSave = () => {
-    setUser(form);
-    setEditing(false);
-    alert("Änderungen erfolgreich gespeichert!"); // Text korrigiert
+  // PUT-Request zum Backend
+  const handleSave = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        setError("No token found. Please log in.");
+        return;
+      }
+
+      const res = await fetch("http://localhost:5517/owner/profile/update", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(form),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data?.message || "Update failed");
+      }
+
+      setUser(data); // Backend gibt updatedOwner zurück
+      setEditing(false);
+      alert("Änderungen erfolgreich gespeichert!");
+    } catch (err) {
+      setError(err.message);
+    }
   };
 
   if (error)
@@ -138,6 +164,7 @@ export default function ProfilePage() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/** Name */}
         <div>
           <label className="font-semibold text-gray-700">Name</label>
           {editing ? (
@@ -153,6 +180,7 @@ export default function ProfilePage() {
           )}
         </div>
 
+        {/** Email */}
         <div>
           <label className="font-semibold text-gray-700">Email</label>
           {editing ? (
@@ -168,6 +196,7 @@ export default function ProfilePage() {
           )}
         </div>
 
+        {/** Phone */}
         <div>
           <label className="font-semibold text-gray-700">Phone</label>
           {editing ? (
@@ -183,6 +212,7 @@ export default function ProfilePage() {
           )}
         </div>
 
+        {/** Restaurant */}
         <div>
           <label className="font-semibold text-gray-700">Restaurant</label>
           {editing ? (
@@ -198,6 +228,7 @@ export default function ProfilePage() {
           )}
         </div>
 
+        {/** Tax Number */}
         <div>
           <label className="font-semibold text-gray-700">Tax Number</label>
           {editing ? (
@@ -213,6 +244,7 @@ export default function ProfilePage() {
           )}
         </div>
 
+        {/** Website */}
         <div>
           <label className="font-semibold text-gray-700">Website</label>
           {editing ? (
@@ -229,6 +261,7 @@ export default function ProfilePage() {
         </div>
       </div>
 
+      {/** Address */}
       <div className="mt-6">
         <label className="font-semibold text-gray-700">Address</label>
         {editing ? (
@@ -271,6 +304,7 @@ export default function ProfilePage() {
         )}
       </div>
 
+      {/** Buttons */}
       <div className="mt-6 flex gap-4">
         {editing ? (
           <>
