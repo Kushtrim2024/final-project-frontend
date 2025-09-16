@@ -54,7 +54,7 @@ export default function ProfilePage() {
         const data = await res.json();
         setUser(data);
         if (data) {
-          // ذخیره در localStorage برای Checkout
+          // Checkout
           localStorage.setItem("checkoutName", data.name || "");
           localStorage.setItem("checkoutPhone", data.phone || "");
         }

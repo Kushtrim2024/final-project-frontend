@@ -131,7 +131,7 @@ export default function ProfilePage() {
 
       setUser(data); // Backend gibt updatedOwner zurück
       setEditing(false);
-      alert("Änderungen erfolgreich gespeichert!");
+      alert("Changes saved successfully!");
     } catch (err) {
       setError(err.message);
     }

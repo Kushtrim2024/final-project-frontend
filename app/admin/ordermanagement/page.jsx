@@ -555,7 +555,6 @@ export default function OrderManagementPage() {
                         </div>
                       )}
 
-                    {/* eski cart desteği (geriye dönük uyumluluk) */}
                     {!details.items &&
                       Array.isArray(details.cart) &&
                       details.cart.length > 0 && (

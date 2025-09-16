@@ -44,7 +44,7 @@ export default function AddToCartModal({ item, onClose, onAdded }) {
 
   async function handleAdd() {
     if (!userId) {
-      alert("Lütfen giriş yapın (userId ve token ayarlayın).");
+      alert("Please log in (set userId and token)");
       return;
     }
     try {
@@ -62,7 +62,7 @@ export default function AddToCartModal({ item, onClose, onAdded }) {
       onAdded?.();
       onClose?.();
     } catch (e) {
-      alert(`Sepete eklenemedi: ${e.message}`);
+      alert(`Could not add to cart: ${e.message}`);
     } finally {
       setPosting(false);
     }
