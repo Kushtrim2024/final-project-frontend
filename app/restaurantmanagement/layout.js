@@ -95,12 +95,7 @@ export default function Navbar({ children }) {
           >
             Opening Hours Settings
           </Link>
-          <Link
-            href="/restaurantmanagement/pricingpromo"
-            className={linkClasses("/restaurantmanagement/pricingpromo")}
-          >
-            Pricing & Promotions
-          </Link>
+
           <Link
             href="/restaurantmanagement/restaurantpro"
             className={linkClasses("/restaurantmanagement/restaurantpro")}
