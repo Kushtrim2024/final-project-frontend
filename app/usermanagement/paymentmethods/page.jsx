@@ -66,14 +66,14 @@ export default function PaymentMethodsPage() {
       .catch(console.error);
   }, [token]);
 
-  // Neue Payment Method hinzufügen
+  // Add new payment method
   const handleAdd = async () => {
-    if (!token) return alert("Token fehlt! Bitte neu einloggen.");
+    if (!token) return alert("Token missing! Please log in again.");
     const validateEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
     if (["PayPal", "Apple Pay", "Google Pay"].includes(newMethod.type)) {
       if (!validateEmail(newMethod.details))
-        return alert("Ungültige E-Mail-Adresse");
+        return alert("Invalid email address");
     }
 
     try {
@@ -97,7 +97,7 @@ export default function PaymentMethodsPage() {
       });
 
       const data = await res.json();
-      if (!res.ok) return alert(data.message || "Fehler beim Speichern!");
+      if (!res.ok) return alert(data.message || "Could not save!");
 
       // ✅ Liste aktualisieren
       setPaymentMethods(data.paymentMethods);
@@ -106,7 +106,7 @@ export default function PaymentMethodsPage() {
       setNewMethod({ type: "Credit Card", cardType: "visa", details: "" });
     } catch (err) {
       console.error(err);
-      alert("Fehler beim Hinzufügen!");
+      alert("Could not add!");
     }
   };
 
@@ -125,12 +125,12 @@ export default function PaymentMethodsPage() {
       });
 
       const data = await res.json();
-      if (!res.ok) return alert(data.message || "Fehler beim Löschen!");
+      if (!res.ok) return alert(data.message || "Could not delete!");
 
       setPaymentMethods(data.paymentMethods || []);
     } catch (err) {
       console.error(err);
-      alert("Fehler beim Löschen!");
+      alert("Could not delete!");
     }
   };
 

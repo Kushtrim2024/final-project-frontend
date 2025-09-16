@@ -1001,7 +1001,8 @@ export default function CheckoutPage() {
                   )}
                   {newMethodType === "cod" && (
                     <div className="text-xs text-slate-600">
-                      Kapıda ödeme (nakit/kart). Kurye teslimatta tahsil eder.
+                      Payment upon delivery (cash/card). Courier collects upon
+                      delivery.
                     </div>
                   )}
                 </div>
