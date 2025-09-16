@@ -604,7 +604,7 @@ export default function Home() {
   }
 
   return (
-    <div className="relative min-h-[100dvh]">
+    <div className="relative min-h-[100dvh] mt-6">
       {showSplash && <LoaderOverlay text="Loading" />}
 
       {/* background */}

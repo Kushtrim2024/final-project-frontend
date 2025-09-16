@@ -1,79 +1,95 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
 import Link from "next/link";
-import { getOrders } from "../lib/ordersApi";
+import { useEffect, useState } from "react";
 
-export default function OrdersPage() {
-  const [loading, setLoading] = useState(false);
-  const [err, setErr] = useState(null);
-  const [orders, setOrders] = useState([]);
+/**
+ * OrderConfirmationPage
+ *
+ * Purpose:
+ * - Show a simple “Thank you / Order received” screen after checkout.
+ * - Optionally display a lightweight summary pulled from sessionStorage.
+ *
+ * How it works:
+ * - Right after a successful checkout, the Checkout page stores:
+ *   sessionStorage.setItem("lastOrder", JSON.stringify({ id, total, deliveryType, restaurantId }))
+ * - This page reads that value and shows a small summary.
+ * - No authentication required here; for full details the user can navigate to
+ *   the order history page: /usermanagement/orderhistory
+ *
+ * Notes:
+ * - If you prefer to fetch fresh data instead of using sessionStorage,
+ *   you can pass ?id=<orderId> in the URL and call GET /orders/details/:id
+ *   with the Authorization header.
+ */
+
+export default function OrderConfirmationPage() {
+  const [lastOrder, setLastOrder] = useState(null);
 
   useEffect(() => {
-    let ignore = false;
-    (async () => {
-      try {
-        setLoading(true);
-        const data = await getOrders();
-        if (!ignore) setOrders(Array.isArray(data) ? data : data?.orders || []);
-      } catch (e) {
-        if (!ignore) setErr(e.message || "Failed to load orders");
-      } finally {
-        if (!ignore) setLoading(false);
-      }
-    })();
-    return () => {
-      ignore = true;
-    };
+    if (typeof window === "undefined") return;
+    try {
+      const raw = sessionStorage.getItem("lastOrder");
+      if (raw) setLastOrder(JSON.parse(raw));
+    } catch {
+      // Ignore parsing errors; we'll still render the generic thank-you message.
+    }
   }, []);
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-8">
-      <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-bold">My Orders</h1>
-        <Link href="/" className="text-sm text-rose-600 hover:underline">
-          ← Home
-        </Link>
-      </div>
+    <div className="mx-auto max-w-xl px-6 py-16 text-center">
+      <div className="text-5xl mb-4">✅</div>
+      <h1 className="text-2xl font-extrabold text-slate-900">
+        Your order has been received!
+      </h1>
+      <p className="text-slate-600 mt-2">
+        Thank you. We’ve started preparing your order.
+      </p>
 
-      {loading ? (
-        <div>Loading…</div>
-      ) : err ? (
-        <div className="rounded bg-red-50 p-4 text-red-700">{err}</div>
-      ) : orders.length === 0 ? (
-        <div className="rounded border border-dashed p-6 text-slate-600">
-          No orders yet.
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {orders.map((o) => (
-            <Link
-              key={o._id}
-              href={`/orders/${o._id}`}
-              className="block rounded-xl bg-white p-4 shadow ring-1 ring-black/5 hover:bg-slate-50"
-            >
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="font-semibold">
-                    #{o._id.slice(-6).toUpperCase()} — {o.status}
-                  </div>
-                  <div className="text-sm text-slate-600">
-                    {new Date(o.createdAt || o.orderTime).toLocaleString()}
-                  </div>
-                </div>
-                <div className="text-right">
-                  <div className="text-sm">
-                    {Array.isArray(o.items) ? `${o.items.length} item(s)` : ""}
-                  </div>
-                  <div className="text-lg font-bold">
-                    € {(o.total || 0).toFixed(2)}
-                  </div>
-                </div>
-              </div>
-            </Link>
-          ))}
+      {/* Lightweight summary from sessionStorage (optional) */}
+      {lastOrder && (
+        <div className="mt-6 rounded-2xl bg-white p-5 ring-1 ring-black/5 text-left">
+          <div className="text-sm text-slate-500">Order summary</div>
+          <div className="mt-2 text-sm">
+            <div className="flex items-center justify-between">
+              <span>Order ID</span>
+              <span className="font-semibold">{lastOrder.id}</span>
+            </div>
+            <div className="flex items-center justify-between mt-1">
+              <span>Amount</span>
+              <span className="font-semibold">
+                {typeof lastOrder.total === "number"
+                  ? `€ ${lastOrder.total.toFixed(2)}`
+                  : "—"}
+              </span>
+            </div>
+            <div className="flex items-center justify-between mt-1">
+              <span>Fulfillment</span>
+              <span className="font-semibold">
+                {lastOrder.deliveryType === "takeaway" ? "Pickup" : "Delivery"}
+              </span>
+            </div>
+          </div>
         </div>
       )}
+
+      {/* Primary actions */}
+      <div className="mt-8 flex flex-col sm:flex-row gap-3 justify-center">
+        <Link
+          href="/"
+          className="rounded-lg bg-rose-600 px-5 py-2.5 text-white font-semibold hover:bg-rose-700"
+        >
+          Back to restaurants
+        </Link>
+
+        {/* Goes to http://localhost:3000/usermanagement/orderhistory */}
+        <Link
+          href="/usermanagement/orderhistory"
+          className="rounded-lg border border-slate-300 px-5 py-2.5 text-slate-800 hover:bg-slate-50"
+        >
+          View my orders
+        </Link>
+      </div>
     </div>
   );
 }

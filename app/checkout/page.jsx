@@ -9,7 +9,6 @@ import { useRouter } from "next/navigation";
 ============================================================================= */
 const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5517";
-const CART_API_BASE = process.env.NEXT_PUBLIC_CART_API_BASE || API_BASE;
 const CART_KEY = "liefrik_cart_v1";
 
 /* Delivery & tax */
@@ -18,9 +17,6 @@ const VAT_RATE = 0.07;
 
 /* =============================================================================
    AYARLANABİLİR GROUP PAGINATION
-   - Varsayılanı 2; kullanıcı UI'dan 1–5 seçebilir; localStorage'da saklanır.
-   - İstersen env ile başlangıç değerini verebilirsin:
-     NEXT_PUBLIC_CART_GROUPS_PER_PAGE
 ============================================================================= */
 const GROUPS_PER_PAGE_DEFAULT = Number(
   process.env.NEXT_PUBLIC_CART_GROUPS_PER_PAGE || 2
@@ -54,6 +50,22 @@ function detectCardType(cardNumber) {
   if (/^3[47]/.test(num)) return "amex";
   if (/^(6011|65|64[4-9]|622)/.test(num)) return "discover";
   return "other";
+}
+
+function luhnCheck(num) {
+  const s = (num || "").replace(/\D/g, "");
+  let sum = 0,
+    dbl = false;
+  for (let i = s.length - 1; i >= 0; i--) {
+    let d = parseInt(s[i], 10);
+    if (dbl) {
+      d *= 2;
+      if (d > 9) d -= 9;
+    }
+    sum += d;
+    dbl = !dbl;
+  }
+  return s.length >= 12 && sum % 10 === 0;
 }
 
 function getAuthFromStorage() {
@@ -125,6 +137,24 @@ function getPageButtons(current, total) {
   return pages;
 }
 
+/* items[] -> backend cart payload */
+function buildCartPayload(items) {
+  return (items || []).map((it) => {
+    const menuItemId = it.menuItemId || it.productId || it._id || it.id || null;
+    const sizeLabel = it.selectedSize || it.size || null;
+    const addOnValues = Array.isArray(it.selectedAddOnsDetailed)
+      ? it.selectedAddOnsDetailed.map((a) => a._id || a.id || a.name)
+      : [];
+
+    return {
+      menuItemId,
+      sizeLabel,
+      addOns: addOnValues,
+      quantity: Number(it.qty) || 1,
+    };
+  });
+}
+
 /* =============================================================================
    COMPONENT
 ============================================================================= */
@@ -139,10 +169,17 @@ export default function CheckoutPage() {
   const [phone, setPhone] = useState("");
   const [address, setAddress] = useState("");
   const [deliveryType, setDeliveryType] = useState("delivery");
-  const [paymentMethod, setPaymentMethod] = useState("card");
+
+  /* payment */
   const [savedMethods, setSavedMethods] = useState([]);
-  const [selectedAddressObj, setSelectedAddressObj] = useState(null);
+  const [paymentMethod, setPaymentMethod] = useState("card"); // saved _id veya string
+  const [useNewMethod, setUseNewMethod] = useState(false);
+  const [newMethodType, setNewMethodType] = useState("card"); // 'card' | 'paypal' | 'cod'
   const [cardNumber, setCardNumber] = useState("");
+  const [cardHolder, setCardHolder] = useState("");
+  const [cardExpiry, setCardExpiry] = useState("");
+  const [cardCvc, setCardCvc] = useState("");
+  const [paypalEmail, setPaypalEmail] = useState("");
 
   /* auth */
   const { token, userId, name } = getAuthFromStorage();
@@ -152,11 +189,14 @@ export default function CheckoutPage() {
   useEffect(() => {
     const savedAddr = localStorage.getItem("checkoutAddress");
     if (savedAddr) {
-      const addrObj = JSON.parse(savedAddr);
-      setSelectedAddressObj(addrObj);
-      setAddress(
-        `${addrObj.street}, ${addrObj.city}, ${addrObj.postalCode}, ${addrObj.country}`
-      );
+      try {
+        const addrObj = JSON.parse(savedAddr);
+        setAddress(
+          `${addrObj.street}, ${addrObj.postalCode},\n${addrObj.city}, ${addrObj.country}`
+        );
+      } catch {
+        setAddress(savedAddr);
+      }
     }
 
     const savedName = localStorage.getItem("checkoutName");
@@ -164,31 +204,10 @@ export default function CheckoutPage() {
 
     const savedPhone = localStorage.getItem("checkoutPhone");
     if (savedPhone) setPhone(savedPhone);
-  }, []);
-
-  // --- Handle manual address change ---
-  const handleAddressChange = (e) => {
-    setAddress(e.target.value);
-    setSelectedAddressObj(null);
-  };
-  useEffect(() => {
-    setItems(readCart());
   }, []);
 
   useEffect(() => {
-    const savedName = localStorage.getItem("checkoutName");
-    if (savedName) setCustomerName(savedName);
-
-    const savedPhone = localStorage.getItem("checkoutPhone");
-    if (savedPhone) setPhone(savedPhone);
-
-    const savedAddress = localStorage.getItem("checkoutAddress");
-    if (savedAddress) {
-      const addrObj = JSON.parse(savedAddress);
-      setAddress(
-        `${addrObj.street}, ${addrObj.postalCode},\n${addrObj.city}, ${addrObj.country}`
-      );
-    }
+    setItems(readCart());
   }, []);
 
   useEffect(() => {
@@ -201,6 +220,8 @@ export default function CheckoutPage() {
             Authorization: `Bearer ${token}`,
           },
         });
+        console.log("token in checkout:", token);
+
         if (!res.ok) throw new Error("Failed to fetch payment methods");
         const data = await res.json();
         setSavedMethods(data.paymentMethods || []);
@@ -252,74 +273,6 @@ export default function CheckoutPage() {
     setItems([]);
   }
 
-  async function handleChoosePayment() {
-    if (!userId) return;
-    try {
-      await fetch(`${CART_API_BASE}/cart/choose-payment`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({ userId, paymentMethod }),
-      });
-    } catch (e) {
-      console.warn("choose payment failed:", e);
-    }
-  }
-
-  async function handlePlaceOrder() {
-    if (!items || items.length === 0) return alert("Your cart is empty.");
-    if (deliveryType === "delivery" && !address.trim())
-      return alert("Delivery address is required.");
-    if (!customerName.trim()) return alert("Full name is required.");
-    if (!phone.trim()) return alert("Phone number is required.");
-
-    await handleChoosePayment();
-
-    const payload = {
-      userId: userId || undefined,
-      restaurantId: items[0]?.restaurantId, // server tek restoran varsayımı
-      customerName,
-      phone,
-      address,
-      deliveryType,
-      paymentMethod,
-      // paymentDetails:
-      // paymentMethod === "card"
-      //   ? { cardNumber }
-      //   : paymentMethod === "paypal"
-      //   ? { transactionId: "PAYPAL_DEMO_" + Date.now() }
-      //   : {},
-    };
-
-    try {
-      const res = await fetch(`${CART_API_BASE}/cart/checkout`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify(payload),
-      });
-      if (!res.ok) {
-        console.warn("checkout failed:", res.status, await res.text());
-        alert(
-          "Checkout failed on server. (Demo) Assuming your order was created."
-        );
-        clearCart();
-        router.push("/orders");
-        return;
-      }
-      await res.json();
-      clearCart();
-      router.push("/orders");
-    } catch (e) {
-      console.warn("checkout error:", e);
-      alert("An error occurred during checkout.");
-    }
-  }
-
   /* ===========================================================================
      GROUPING + PAGINATION (restaurant-level)
   =========================================================================== */
@@ -369,17 +322,14 @@ export default function CheckoutPage() {
   const groupsThisPage = groupedAll.slice(startIdx, endIdx);
 
   /* ===========================================================================
-     EDIT MODALI (cart item'ı düzenle: size / add-ons / qty)
-     - Not: Restaurant sayfasında sepete atarken snapshot kaydediyoruz:
-       availableSizes, availableAddOns
+     EDIT MODALI (cart item düzenleme)
   =========================================================================== */
   const [editOpen, setEditOpen] = useState(false);
-  const [editIdx, setEditIdx] = useState(null); // absolute index in items[]
+  const [editIdx, setEditIdx] = useState(null);
   const [editSize, setEditSize] = useState(null);
   const [editAddOns, setEditAddOns] = useState([]);
   const [editQty, setEditQty] = useState(1);
 
-  // unit price'ı, seçilen size'a göre hesapla
   function priceOfSize(sizes, label) {
     if (!Array.isArray(sizes) || sizes.length === 0) return 0;
     const s = sizes.find((x) => x.label === label) || sizes[0];
@@ -414,16 +364,18 @@ export default function CheckoutPage() {
       const sizes = it.availableSizes || [];
       const addOns = it.availableAddOns || [];
 
-      // yeni unit price (size'a göre)
       const unitPrice =
         sizes.length > 0
           ? priceOfSize(sizes, editSize)
           : Number(it.unitPrice) || 0;
 
-      // seçilen add-on'ların detay listesi
       const selectedAddOnsDetailed = addOns
         .filter((a) => editAddOns.includes(a.name))
-        .map((a) => ({ name: a.name, price: Number(a.price) || 0 }));
+        .map((a) => ({
+          name: a.name,
+          price: Number(a.price) || 0,
+          _id: a._id,
+        }));
 
       next[editIdx] = {
         ...it,
@@ -439,6 +391,80 @@ export default function CheckoutPage() {
 
     setEditOpen(false);
     setEditIdx(null);
+  }
+
+  async function handlePlaceOrder() {
+    if (!items || items.length === 0) return alert("Your cart is empty.");
+    if (deliveryType === "delivery" && !address.trim())
+      return alert("Delivery address is required.");
+    if (!customerName.trim()) return alert("Full name is required.");
+    if (!phone.trim()) return alert("Phone number is required.");
+
+    // ödeme seçimi
+    let paymentPayload = {};
+    let paymentMethodToSend = "";
+
+    if (useNewMethod || savedMethods.length === 0) {
+      if (newMethodType === "card") {
+        if (!luhnCheck(cardNumber)) return alert("Card number looks invalid.");
+        paymentMethodToSend = "card";
+        paymentPayload = {
+          card: {
+            brand: detectCardType(cardNumber),
+            holder: cardHolder,
+            number: cardNumber.replace(/\s+/g, ""),
+            expiry: cardExpiry,
+            cvc: cardCvc,
+          },
+        };
+      } else if (newMethodType === "paypal") {
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(paypalEmail))
+          return alert("Please enter a valid PayPal email.");
+        paymentMethodToSend = "paypal";
+        paymentPayload = { paypal: { email: paypalEmail } };
+      } else {
+        paymentMethodToSend = "cod";
+        paymentPayload = { cod: true };
+      }
+    } else {
+      const selected = savedMethods.find((m) => m._id === paymentMethod);
+      const methodType = selected?.type || "card";
+      paymentMethodToSend = methodType;
+      paymentPayload = { savedMethodId: selected?._id || paymentMethod };
+    }
+    const payload = {
+      userId: userId || undefined,
+      restaurantId: items[0]?.restaurantId || null,
+      cart: buildCartPayload(items),
+      customerName,
+      phone,
+      address,
+      deliveryType,
+      paymentMethod: paymentMethodToSend,
+      paymentDetails: paymentPayload,
+    };
+
+    try {
+      const res = await fetch(`${API_BASE}/orders`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const txt = await res.text();
+        console.warn("checkout failed:", res.status, txt);
+        return alert(`Checkout failed: ${txt || res.status}`);
+      }
+      await res.json();
+      clearCart();
+      router.push("/orders");
+    } catch (e) {
+      console.warn("checkout error:", e);
+      alert("An error occurred during checkout.");
+    }
   }
 
   /* =============================================================================
@@ -790,7 +816,7 @@ export default function CheckoutPage() {
             </div>
           </div>
 
-          {/* RIGHT: summary + form */}
+          {/* RIGHT: summary + form + payment */}
           <div className="space-y-4">
             <div className="rounded-2xl bg-[#12151a] p-4 text-white ring-1 ring-white/10">
               <div className="mb-3 font-semibold tracking-wider">Summary</div>
@@ -864,7 +890,7 @@ export default function CheckoutPage() {
                 Payment
               </div>
 
-              {savedMethods.length > 0 ? (
+              {savedMethods.length > 0 && (
                 <div className="space-y-2">
                   <div className="text-xs text-slate-500 mb-2">
                     Saved methods
@@ -873,50 +899,113 @@ export default function CheckoutPage() {
                     <button
                       key={m._id}
                       className={`w-full flex items-center justify-between rounded-lg border px-3 py-2 text-sm ${
-                        paymentMethod === m._id
+                        paymentMethod === m._id && !useNewMethod
                           ? "border-rose-600 bg-rose-50"
                           : "border-slate-200 bg-white hover:bg-slate-50"
                       }`}
-                      onClick={() => setPaymentMethod(m._id)}
+                      onClick={() => {
+                        setUseNewMethod(false);
+                        setPaymentMethod(m._id);
+                      }}
+                      type="button"
                     >
                       <div className="flex items-center gap-2">
                         {m.icon && (
                           <img src={m.icon} alt={m.type} className="h-5 w-5" />
                         )}
                         <span className="capitalize">{m.type}</span>
-                        {/* {m.cardType && (
-                          <span>
-                            ({m.cardType} ••••{m.last4})
-                          </span>
-                        )} */}
                       </div>
                     </button>
                   ))}
                 </div>
-              ) : (
-                <div className="text-sm text-slate-500 mb-2">
-                  No saved payment methods
-                </div>
               )}
 
-              {/* <div className="mt-4 text-xs text-slate-500">
-                Or use a new method:
+              <div className="mt-4">
+                <button
+                  type="button"
+                  className={`text-sm underline ${
+                    useNewMethod ? "text-rose-700" : "text-slate-700"
+                  }`}
+                  onClick={() => setUseNewMethod((v) => !v)}
+                >
+                  {useNewMethod
+                    ? "← Saved methods"
+                    : savedMethods.length
+                    ? "Or use a new method"
+                    : "Use a new method"}
+                </button>
               </div>
-              <div className="flex flex-wrap gap-2 mt-2">
-                {["card", "paypal", "applepay", "googlepay"].map((pm) => (
-                  <button
-                    key={pm}
-                    className={`rounded-lg border px-3 py-2 text-sm capitalize ${
-                      paymentMethod === pm
-                        ? "border-rose-600 bg-rose-50"
-                        : "border-slate-200 bg-white"
-                    }`}
-                    onClick={() => setPaymentMethod(pm)}
-                  >
-                    {pm}
-                  </button>
-                ))}
-              </div> */}
+
+              {useNewMethod || savedMethods.length === 0 ? (
+                <div className="mt-3 space-y-3">
+                  <div className="flex flex-wrap gap-2">
+                    {["card", "paypal", "cod"].map((pm) => (
+                      <button
+                        key={pm}
+                        className={`rounded-lg border px-3 py-2 text-sm capitalize ${
+                          newMethodType === pm
+                            ? "border-rose-600 bg-rose-50"
+                            : "border-slate-200 bg-white"
+                        }`}
+                        onClick={() => setNewMethodType(pm)}
+                        type="button"
+                      >
+                        {pm === "cod" ? "cash on delivery" : pm}
+                      </button>
+                    ))}
+                  </div>
+
+                  {newMethodType === "card" && (
+                    <div className="grid gap-2">
+                      <input
+                        className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                        placeholder="Card holder name"
+                        value={cardHolder}
+                        onChange={(e) => setCardHolder(e.target.value)}
+                      />
+                      <input
+                        className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                        placeholder="Card number"
+                        inputMode="numeric"
+                        value={cardNumber}
+                        onChange={(e) => setCardNumber(e.target.value)}
+                      />
+                      <div className="grid grid-cols-2 gap-2">
+                        <input
+                          className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                          placeholder="MM/YY"
+                          value={cardExpiry}
+                          onChange={(e) => setCardExpiry(e.target.value)}
+                        />
+                        <input
+                          className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                          placeholder="CVC"
+                          inputMode="numeric"
+                          value={cardCvc}
+                          onChange={(e) => setCardCvc(e.target.value)}
+                        />
+                      </div>
+                      <div className="text-xs text-slate-500">
+                        Detected: <b>{detectCardType(cardNumber)}</b>
+                      </div>
+                    </div>
+                  )}
+
+                  {newMethodType === "paypal" && (
+                    <input
+                      className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                      placeholder="PayPal email"
+                      value={paypalEmail}
+                      onChange={(e) => setPaypalEmail(e.target.value)}
+                    />
+                  )}
+                  {newMethodType === "cod" && (
+                    <div className="text-xs text-slate-600">
+                      Kapıda ödeme (nakit/kart). Kurye teslimatta tahsil eder.
+                    </div>
+                  )}
+                </div>
+              ) : null}
             </div>
           </div>
 
