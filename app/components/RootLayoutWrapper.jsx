@@ -83,7 +83,7 @@ export default function RootLayoutWrapper({ children }) {
         }
 
         .shell-pad {
-          padding-top: 10rem; /* istersen var(--shell-header-h) kullan */
+          padding-top: 9rem; /* istersen var(--shell-header-h) kullan */
           padding-bottom: var(--shell-footer-h);
           min-height: 100dvh;
         }
