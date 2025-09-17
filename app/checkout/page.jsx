@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 
 /* =============================================================================
    CONFIG
@@ -621,9 +622,11 @@ export default function CheckoutPage() {
                         key={`${group.name}-${idx}`}
                         className="flex gap-3 rounded-2xl bg-white p-3 ring-1 ring-black/5"
                       >
-                        <img
+                        <Image
                           src={it.img}
                           alt={it.name}
+                          width={196}
+                          height={196}
                           className="h-24 w-24 rounded-lg object-cover"
                           onError={(e) => {
                             e.currentTarget.onerror = null;
@@ -911,7 +914,13 @@ export default function CheckoutPage() {
                     >
                       <div className="flex items-center gap-2">
                         {m.icon && (
-                          <img src={m.icon} alt={m.type} className="h-5 w-5" />
+                          <Image
+                            src={m.icon}
+                            alt={m.type}
+                            className="h-5 w-5"
+                            width={30}
+                            height={30}
+                          />
                         )}
                         <span className="capitalize">{m.type}</span>
                       </div>

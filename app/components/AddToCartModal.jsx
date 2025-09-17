@@ -4,6 +4,7 @@ import React, { useMemo, useState, useEffect } from "react";
 import Link from "next/link";
 import { addToCart } from "@/lib/cartApi";
 import { getAuth } from "@/lib/auth";
+import Image from "next/image";
 
 const seededAlt = (seed, w = 800, h = 400) =>
   `https://picsum.photos/seed/${encodeURIComponent(seed)}/${w}/${h}`;
@@ -80,9 +81,11 @@ export default function AddToCartModal({ item, onClose, onAdded }) {
         onClick={(e) => e.stopPropagation()}
       >
         <div className="relative">
-          <img
+          <Image
             src={item.img}
             alt={item.name}
+            width={800}
+            height={400}
             className="h-48 w-full object-cover"
             onError={(e) => {
               e.currentTarget.onerror = null;

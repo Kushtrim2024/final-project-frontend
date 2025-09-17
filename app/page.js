@@ -6,6 +6,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faSearch } from "@fortawesome/free-solid-svg-icons";
 import LoaderOverlay from "./components/LoaderOverlay";
+import Image from "next/image";
 
 const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5517";
@@ -96,6 +97,29 @@ function writeLocale(val) {
       JSON.stringify(val || { type: "none", label: "Choose your locale" })
     );
   } catch {}
+}
+
+/** ---------- Auth helpers (localStorage) ---------- */
+function getTokenFromStorage() {
+  if (typeof window === "undefined") return null;
+  const KEYS = ["liefrik_token", "token", "auth_token"];
+  for (const k of KEYS) {
+    const v = localStorage.getItem(k);
+    if (v) return v;
+  }
+  return null;
+}
+function getRoleFromStorage() {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem("auth");
+    if (raw) {
+      const a = JSON.parse(raw);
+      return a?.user?.role || a?.role || null;
+    }
+  } catch {}
+  // fallback keys you may have elsewhere
+  return localStorage.getItem("role");
 }
 
 /** ---------- Reverse geocoding (lat/lng -> postcode) ---------- */
@@ -849,9 +873,11 @@ export default function Home() {
                   className="group relative overflow-hidden rounded-2xl shadow-lg ring-1 ring-black/5 focus:outline-none"
                   title={`${r.title} — details`}
                 >
-                  <img
+                  <Image
                     src={r.img}
                     alt={r.title}
+                    width={280}
+                    height={280}
                     className="h-56 w-full object-cover transition-transform duration-300 group-hover:scale-105"
                     onError={(e) => {
                       e.currentTarget.onerror = null;
@@ -1007,9 +1033,11 @@ export default function Home() {
                             key={`${restName}-${absoluteIndex}`}
                             className="flex gap-3 rounded-lg bg-[#0f1318] p-3 ring-1 ring-white/5"
                           >
-                            <img
+                            <Image
                               src={it.img}
                               alt={it.name}
+                              width={56}
+                              height={56}
                               className="h-14 w-14 rounded-md object-cover"
                               onError={(e) => {
                                 e.currentTarget.onerror = null;
@@ -1120,7 +1148,17 @@ export default function Home() {
             <button
               className="mt-4 w-full rounded-lg bg-rose-600 py-3 font-semibold tracking-wide hover:bg-rose-700 disabled:opacity-60"
               disabled={cartItems.length === 0}
-              onClick={() => router.push("/checkout")}
+              onClick={() => {
+                const token = getTokenFromStorage();
+                const role = getRoleFromStorage();
+                if (!token || role !== "user") {
+                  alert(
+                    "Only customers with the 'user' role can use checkout."
+                  );
+                  return;
+                }
+                router.push("/checkout");
+              }}
             >
               CHECKOUT
             </button>

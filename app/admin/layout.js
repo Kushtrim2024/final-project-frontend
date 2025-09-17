@@ -4,6 +4,7 @@ import React from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import NavAdmin from "./componentsadmin/NavAdmin.jsx";
+import Image from "next/image";
 
 export default function AdminLayout({ children }) {
   const router = useRouter();
@@ -24,7 +25,13 @@ export default function AdminLayout({ children }) {
       <div className="sticky top-0 z-[2000] bg-gray-200 w-full shadow-md">
         <div className="flex flex-row items-center justify-between w-full h-30 px-4">
           <Link href="/">
-            <img src="/logo.png" alt="Logo" className="w-20 h-20" />
+            <Image
+              src="/logo.png"
+              alt="Logo"
+              width={80}
+              height={80}
+              className="w-20 h-20"
+            />
           </Link>
 
           <div className="flex-1 flex justify-center">

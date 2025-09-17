@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import Image from "next/image";
 
 /* =============================================================================
    API endpoints
@@ -346,7 +347,9 @@ export default function RestaurantProfile() {
           persist it for <strong>this restaurant only</strong>.
         </p>
         {(coverPreview || coverPhoto) && (
-          <img
+          <Image
+            width={800}
+            height={200}
             src={coverPreview || coverPhoto}
             alt="Cover"
             className="w-full h-40 object-cover border rounded mt-3"

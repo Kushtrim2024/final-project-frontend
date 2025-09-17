@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 import { Menu, X } from "lucide-react"; // für Icons
+import Image from "next/image";
 
 export default function Navbar({ children }) {
   const pathname = usePathname();
@@ -54,10 +55,12 @@ export default function Navbar({ children }) {
         {/* Logo */}
         <div className="flex items-center justify-center w-full sm:w-auto">
           <Link href="/">
-            <img
+            <Image
               src="/logo.png"
               alt="Logo"
               className="w-20 h-20 object-contain"
+              width={80}
+              height={80}
             />
           </Link>
         </div>

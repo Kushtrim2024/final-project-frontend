@@ -3,6 +3,8 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
+
 // ---- API Endpoints (zentral) ----
 const API_BASE = "http://localhost:5517"; // ⬅️ WICHTIG: /owner, nicht /user
 const LOGIN_URL = `${API_BASE}/owner/login`; // ⬅️ WICHTIG: owner, nicht user
@@ -240,7 +242,13 @@ export default function PartnerPage() {
       <section className="w-full max-w-sm mb-4 z-10">
         <div className="flex flex-col items-center mb-6">
           <Link href="/">
-            <img src="/logo.png" alt="Logo" className="w-20 h-20 mb-2" />
+            <Image
+              src="/logo.png"
+              alt="Logo"
+              className="w-20 h-20 mb-2"
+              width={80}
+              height={80}
+            />
           </Link>
           <h2 className="text-xl font-bold text-gray-900">Partner Login</h2>
           <p className="text-sm text-gray-600">

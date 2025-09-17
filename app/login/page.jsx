@@ -2,6 +2,7 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 
 function LoginPage() {
   const router = useRouter();
@@ -162,7 +163,13 @@ function LoginPage() {
       <section className="w-full max-w-sm mb-4 z-10">
         <div className="flex flex-col items-center mb-6">
           <Link href="/">
-            <img src="/logo.png" alt="Logo" className="w-20 h-20 mb-2" />
+            <Image
+              src="/logo.png"
+              alt="Logo"
+              className="w-20 h-20 mb-2"
+              width={80}
+              height={80}
+            />
           </Link>
           <h2 className="text-xl font-bold text-gray-800">User Login</h2>
           <p className="text-sm text-gray-500">Welcome back! Please log in.</p>
