@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Image from "next/image";
 
 const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5517";
@@ -170,8 +171,10 @@ export default function ProfilePage() {
       )}
 
       <div className="flex items-start mb-6 flex-col gap-3">
-        <img
+        <Image
           src={currentPhotoSrc}
+          width={96}
+          height={96}
           alt="Profile"
           className="w-24 h-24 rounded-full object-cover border"
           onError={(e) => {

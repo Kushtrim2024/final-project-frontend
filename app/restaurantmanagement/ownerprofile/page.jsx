@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Image from "next/image";
 
 export default function ProfilePage() {
   const [user, setUser] = useState(null);
@@ -155,10 +156,12 @@ export default function ProfilePage() {
   return (
     <div className="max-w-2xl mx-auto mt-10 bg-white/80 backdrop-blur-sm shadow-xl rounded-xl p-8 text-gray-800">
       <div className="flex items-center gap-6 mb-6">
-        <img
+        <Image
           src="/avatar.jpg"
           alt="Profilbild"
           className="w-24 h-24 rounded-full border-2 border-gray-300"
+          width={96}
+          height={96}
         />
         <h1 className="text-3xl font-bold">{user.name || "—"}</h1>
       </div>

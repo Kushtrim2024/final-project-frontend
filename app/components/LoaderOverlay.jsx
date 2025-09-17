@@ -1,18 +1,19 @@
-// components/LoaderOverlay.jsx
 "use client";
 import React from "react";
+import Image from "next/image";
 
-/**
- * Full-screen loading overlay with a floating emoji/logo and dot animation.
- * Drop-in component; hide/show from parent via state.
- */
 export default function LoaderOverlay({ text = "Loading…" }) {
   return (
     <div className="fixed inset-0 z-[9999] grid place-items-center bg-white/75 backdrop-blur-md">
       <div className="flex flex-col items-center gap-4">
-        {/* Animated emoji (replace with <img src="/logo.svg" ... /> if you want) */}
         <div className="text-6xl select-none animate-float">
-          <img src="/logo.png" alt="Logo" className="h-16 w-16 animate-float" />
+          <Image
+            src="/logo.png"
+            alt="Logo"
+            className="h-16 w-16 animate-float"
+            width={64}
+            height={64}
+          />
         </div>
 
         <div className="text-gray-900 font-semibold">

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Image from "next/image";
 
 export default function PaymentMethodsPage() {
   const [paymentMethods, setPaymentMethods] = useState([]);
@@ -147,7 +148,7 @@ export default function PaymentMethodsPage() {
             className="flex justify-between items-center bg-white/50 p-3 rounded border"
           >
             <div className="flex items-center gap-3">
-              <img
+              <Image
                 src={getIcon(method.type, method.cardType)}
                 alt={method.type}
                 width={40}
@@ -190,7 +191,9 @@ export default function PaymentMethodsPage() {
             className="w-full border p-2 flex items-center justify-between rounded-md"
           >
             <span className="flex items-center gap-2">
-              <img
+              <Image
+                width={20}
+                height={20}
                 src={getIcon(
                   mapTypeToBackend[newMethod.type],
                   newMethod.cardType
@@ -214,7 +217,9 @@ export default function PaymentMethodsPage() {
                   }}
                   className="flex items-center gap-2 p-2 hover:bg-gray-100 cursor-pointer"
                 >
-                  <img
+                  <Image
+                    width={20}
+                    height={20}
                     src={getIcon(mapTypeToBackend[type])}
                     alt=""
                     className="w-5 h-5 object-contain"

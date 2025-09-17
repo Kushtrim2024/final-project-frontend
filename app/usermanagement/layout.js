@@ -5,6 +5,7 @@
 import Link from "next/link";
 import NavUser from "./componentsUser/NavUser";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 
 export default function UserLayout({ children }) {
   const router = useRouter();
@@ -43,10 +44,12 @@ export default function UserLayout({ children }) {
       <div className="flex flex-row items-center justify-around w-full h-30 px-4 shadow-md">
         {/* Logo */}
         <Link href="/">
-          <img
+          <Image
             src="/logo.png"
             alt="Logo"
             className="w-20 h-20 md:w-20 md:h-20"
+            width={80}
+            height={80}
           />
         </Link>
 

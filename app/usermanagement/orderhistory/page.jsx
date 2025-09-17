@@ -330,10 +330,11 @@ export default function OrderHistoryPage() {
       setCancelingId(order._id);
       const token =
         typeof window !== "undefined" ? localStorage.getItem("token") : null;
+
       const res = await fetch(
-        `http://localhost:5517/orders/${order._id}/cancel`,
+        `http://localhost:5517/orders/cancel/${order._id}`,
         {
-          method: "POST", // change to PATCH if your backend expects PATCH
+          method: "PUT",
           headers: { Authorization: `Bearer ${token}` },
         }
       );

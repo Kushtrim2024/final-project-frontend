@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
+import Image from "next/image";
 
 /* =============================================================================
    Config
@@ -476,7 +477,6 @@ function RatingItem({ r, canEdit, onEdit, onDelete }) {
     </div>
   );
 }
-
 
 /** RatingsSection (unchanged) */
 function RatingsSection({ restaurantId }) {
@@ -1203,9 +1203,11 @@ export default function RestaurantPage() {
     <div className="min-h-[100dvh] bg-slate-100">
       {/* HERO ================================================================= */}
       <div className="relative">
-        <img
+        <Image
           src={cover}
           alt={title}
+          width={1400}
+          height={260}
           className="h-[260px] w-full object-cover"
           onError={(e) => {
             e.currentTarget.onerror = null;
@@ -1222,10 +1224,12 @@ export default function RestaurantPage() {
                 className="inline-flex items-center gap-2 rounded-md bg-white/60 px-3 py-1 text-sm font-bold text-gray-800  hover:bg-rose-600 hover:text-white"
               >
                 <span className="pb-1">←</span> Liefrik
-                <img
+                <Image
                   src="/logo_blank.png"
                   alt="Liefrik"
                   className="h-6 w-auto object-contain"
+                  width={64}
+                  height={64}
                 />
               </Link>
 
@@ -1420,7 +1424,9 @@ export default function RestaurantPage() {
                         openItemModal(item);
                       }}
                     >
-                      <img
+                      <Image
+                        width={400}
+                        height={200}
                         src={imgDeterministic}
                         alt={item.name}
                         className="h-48 w-full object-cover transition-transform duration-300 group-hover:scale-105"
@@ -1601,9 +1607,11 @@ export default function RestaurantPage() {
                             key={`${restName}-${absoluteIndex}`}
                             className="flex gap-3 rounded-lg bg-[#0f1318] p-3 ring-1 ring-white/5"
                           >
-                            <img
+                            <Image
                               src={it.img}
                               alt={it.name}
+                              width={56}
+                              height={56}
                               className="h-14 w-14 rounded-md object-cover"
                               onError={(e) => {
                                 e.currentTarget.onerror = null;
@@ -1715,7 +1723,20 @@ export default function RestaurantPage() {
             <button
               className="mt-4 w-full rounded-lg bg-rose-600 py-3 font-semibold tracking-wide hover:bg-rose-700 disabled:opacity-60"
               disabled={cartItems.length === 0}
-              onClick={() => router.push("/checkout")}
+              onClick={() => {
+                // Read the freshest auth (don’t trust possibly stale state)
+                const { role, token } = getAuthFromStorage();
+                const isUser = role === "user";
+
+                if (!token || !isUser) {
+                  alert(
+                    "Only customers with the 'user' role can use checkout."
+                  );
+                  return;
+                }
+
+                router.push("/checkout");
+              }}
             >
               CHECKOUT
             </button>
@@ -1735,9 +1756,11 @@ export default function RestaurantPage() {
           >
             {/* Header */}
             <div className="relative">
-              <img
+              <Image
                 src={selectedItem.img}
                 alt={selectedItem.name}
+                width={800}
+                height={400}
                 className="h-48 w-full object-cover"
                 onError={(e) => {
                   e.currentTarget.onerror = null;
