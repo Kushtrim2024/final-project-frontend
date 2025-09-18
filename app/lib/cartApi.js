@@ -1,8 +1,7 @@
 // lib/cartApi.js
 import { getAuth } from "./auth";
-
-const API_CART_BASE =
-  process.env.NEXT_PUBLIC_CART_API_BASE || "http://localhost:5517";
+import { API_BASE } from "../lib/api.js";
+const API_CART_BASE = process.env.NEXT_PUBLIC_CART_API_BASE || API_BASE;
 
 async function apiFetch(path, { method = "GET", body, headers = {} } = {}) {
   const { token } = getAuth();

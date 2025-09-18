@@ -4,12 +4,11 @@ import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-
+import { API_BASE } from "../lib/api.js";
 /* =============================================================================
    CONFIG
 ============================================================================= */
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5517";
+const API_BASEx = process.env.NEXT_PUBLIC_API_BASE_URL || API_BASE;
 const CART_KEY = "liefrik_cart_v1";
 
 /* Delivery & tax */
@@ -216,7 +215,7 @@ export default function CheckoutPage() {
 
     const fetchPaymentMethods = async () => {
       try {
-        const res = await fetch(`${API_BASE}/user/payment-methods`, {
+        const res = await fetch(`${API_BASEx}/user/payment-methods`, {
           headers: {
             Authorization: `Bearer ${token}`,
           },
@@ -446,7 +445,7 @@ export default function CheckoutPage() {
     };
 
     try {
-      const res = await fetch(`${API_BASE}/orders`, {
+      const res = await fetch(`${API_BASEx}/orders`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

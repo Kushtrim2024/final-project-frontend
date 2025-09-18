@@ -3,7 +3,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
-
+import { API_BASE } from "../../lib/api.js";
 /**
  * Notes:
  * - 100% Tailwind (no inline styles).
@@ -66,8 +66,7 @@ export default function Page() {
       try {
         setResolving(true);
         setRestaurantIdResolved(null);
-        const BASE =
-          process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5517";
+        const BASE = process.env.NEXT_PUBLIC_API_BASE_URL || API_BASE;
         const headers = {};
         try {
           const token =
@@ -156,8 +155,7 @@ export default function Page() {
         setLoading(true);
         setErr(null);
 
-        const BASE =
-          process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5517";
+        const BASE = process.env.NEXT_PUBLIC_API_BASE_URL || API_BASE;
         const API_URL = `${BASE}/owner/restaurants/${restaurantIdResolved}/menu-items`;
         const headers = {};
         try {
@@ -305,8 +303,7 @@ export default function Page() {
     if (!confirm(`Delete “${item.name}”?`)) return;
     try {
       setLoading(true);
-      const BASE =
-        process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5517";
+      const BASE = process.env.NEXT_PUBLIC_API_BASE_URL || API_BASE;
       const headers = {};
       const token =
         localStorage.getItem("token") ||
@@ -330,8 +327,7 @@ export default function Page() {
     e.preventDefault();
 
     try {
-      const BASE =
-        process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5517";
+      const BASE = process.env.NEXT_PUBLIC_API_BASE_URL || API_BASE;
       const url = editing
         ? `${BASE}/owner/restaurants/${restaurantIdResolved}/menu-items/${editing._id}`
         : `${BASE}/owner/restaurants/${restaurantIdResolved}/menu-items`;

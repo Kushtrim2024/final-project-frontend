@@ -2,14 +2,13 @@
 
 import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
-
+import { API_BASE } from "../../lib/api";
 /* =============================================================================
    API endpoints
 ============================================================================= */
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:5517";
-const API_GET = `${API_BASE}/owner/profile`; // GET -> { owner, restaurant }
-const API_PUT = `${API_BASE}/owner/profile/update`; // PUT -> your existing backend
+const API_BASEx = process.env.NEXT_PUBLIC_API_BASE_URL ?? API_BASE;
+const API_GET = `${API_BASEx}/owner/profile`; // GET -> { owner, restaurant }
+const API_PUT = `${API_BASEx}/owner/profile/update`; // PUT -> your existing backend
 
 /* =============================================================================
    Cloudinary (unsigned) upload settings (frontend only)

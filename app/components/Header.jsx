@@ -14,10 +14,9 @@ import {
   faBars,
   faXmark,
 } from "@fortawesome/free-solid-svg-icons";
-
+import { API_BASE } from "../lib/api";
 /** ====== CONFIG ====== */
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5517";
+const API_BASEx = process.env.NEXT_PUBLIC_API_BASE_URL || API_BASE;
 
 const SETTINGS_ROUTE_BY_ROLE = {
   restaurant: "/restaurantmanagement",
@@ -204,7 +203,7 @@ async function fetchMe(token) {
   ];
   for (const p of endpoints) {
     try {
-      const res = await fetch(`${API_BASE}${p}`, {
+      const res = await fetch(`${API_BASEx}${p}`, {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
@@ -379,7 +378,7 @@ export default function Header() {
 
   async function handleLogout() {
     try {
-      await fetch(`${API_BASE}/auth/logout`, {
+      await fetch(`${API_BASEx}/auth/logout`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

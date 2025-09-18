@@ -1,6 +1,6 @@
 // lib/auth.js
 import { signIn, signOut, getSession } from "next-auth/react";
-
+import { API_BASE } from "../lib/api.js";
 export const TOKEN_KEY = "liefrik_token";
 export const USER_ID_KEY = "liefrik_user_id";
 
@@ -33,7 +33,7 @@ export function clearAuth() {
 
 // ===== Backend login/register helpers =====
 export async function loginWithEmail(email, password) {
-  const res = await fetch("http://localhost:5517/user/login", {
+  const res = await fetch(`${API_BASE}/user/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, password }),
@@ -46,7 +46,7 @@ export async function loginWithEmail(email, password) {
 }
 
 export async function registerWithEmail(userData) {
-  const res = await fetch("http://localhost:5517/user/register", {
+  const res = await fetch(`${API_BASE}/user/register`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(userData),

@@ -6,9 +6,8 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faSearch } from "@fortawesome/free-solid-svg-icons";
 import LoaderOverlay from "./LoaderOverlay.jsx";
 import Image from "next/image";
-
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5517";
+import { API_BASE } from "../lib/api";
+const API_BASEx = process.env.NEXT_PUBLIC_API_BASE_URL || API_BASE;
 const PAGE_SIZE_OPTIONS = [9, 12, 18];
 
 /* =============================================================================
@@ -297,7 +296,7 @@ export default function Home() {
     const controller = new AbortController();
 
     async function fetchAll() {
-      const res = await fetch(`${API_BASE}/restaurants`, {
+      const res = await fetch(`${API_BASEx}/restaurants`, {
         signal: controller.signal,
         cache: "no-store",
       });
@@ -313,7 +312,7 @@ export default function Home() {
         localeInfo?.payload?.lng != null
       ) {
         const { lat, lng } = localeInfo.payload;
-        const url = new URL(`${API_BASE}/restaurants/location`);
+        const url = new URL(`${API_BASEx}/restaurants/location`);
         url.searchParams.set("lat", String(lat));
         url.searchParams.set("lng", String(lng));
         const res = await fetch(url.toString(), {
@@ -327,7 +326,7 @@ export default function Home() {
 
       // 2) postcode endpoint
       if (localeInfo?.type === "postcode" && localeInfo?.payload?.postcode) {
-        const url = new URL(`${API_BASE}/restaurants/postcode`);
+        const url = new URL(`${API_BASEx}/restaurants/postcode`);
         url.searchParams.set("postcode", String(localeInfo.payload.postcode));
         const res = await fetch(url.toString(), {
           signal: controller.signal,

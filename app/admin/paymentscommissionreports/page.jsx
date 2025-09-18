@@ -1,8 +1,9 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
+import { API_BASE } from "../../lib/api.js";
 
-const BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:5517";
+const BASE = process.env.NEXT_PUBLIC_API_BASE || API_BASE;
 
 /* ================= Helpers ================= */
 

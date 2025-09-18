@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
+import { API_BASE } from "../../../lib/api.js";
 
 function getToken() {
   if (typeof window === "undefined") return null;
@@ -26,7 +27,7 @@ export default function KundenUsersPage() {
     setLoading(true);
     setErr("");
     try {
-      const res = await fetch("http://localhost:5517/admin/users", {
+      const res = await fetch(`${API_BASE}/admin/users`, {
         method: "GET",
         headers: { Authorization: token ? `Bearer ${token}` : "" },
       });
@@ -79,7 +80,7 @@ export default function KundenUsersPage() {
   async function handleDelete(id) {
     if (!confirm("This user will be deleted. Are you sure?")) return;
     try {
-      const res = await fetch(`http://localhost:5517/admin/users/${id}`, {
+      const res = await fetch(`${API_BASE}/admin/users/${id}`, {
         method: "DELETE",
         headers: { Authorization: token ? `Bearer ${token}` : "" },
       });
@@ -143,7 +144,7 @@ export default function KundenUsersPage() {
     };
 
     try {
-      const res = await fetch("http://localhost:5517/user/register", {
+      const res = await fetch(`${API_BASE}/user/register`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
