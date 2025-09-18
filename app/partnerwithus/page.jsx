@@ -325,7 +325,7 @@ export default function PartnerPage() {
       {/* Register Modal */}
       {showRegisterModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/10">
-          <div className="bg-white rounded-lg shadow-xl p-4 w-[48rem] max-w-[95vw] relative m-4">
+          <div className="bg-white rounded-lg shadow-xl p-4 w-[48rem] max-w-[95vw] relative m-4 max-[700px]:text-[12px]">
             <button
               onClick={() => setShowRegisterModal(false)}
               className="absolute top-2 right-3 text-gray-500 hover:text-gray-700 text-3xl leading-none"
@@ -548,7 +548,7 @@ export default function PartnerPage() {
 
               {/* Row: Business Document */}
               <div className="flex items-start gap-3 w-full">
-                <label className="w-48 text-sm font-medium text-gray-700">
+                <label className="w-48 text-sm font-medium text-gray-700 max-[700px]:w-32">
                   Business Document <br /> (PDF, JPG, PNG) <br />
                   (tax certificate etc.)
                 </label>
