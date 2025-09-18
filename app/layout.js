@@ -3,6 +3,7 @@ import RootLayoutWrapper from "./components/RootLayoutWrapper";
 import AuthProvider from "./components/auth-provider";
 import Providers from "./components/Providers";
 import { Suspense } from "react";
+import Localhost5517Patch from "./components/Localhost5517Patch";
 
 export const metadata = {
   /* ...senin metadata... */
@@ -19,6 +20,7 @@ export default function RootLayout({ children }) {
           <Providers>
             <RootLayoutWrapper>
               <AuthProvider>
+                <Localhost5517Patch />
                 <div className="min-h-[35rem]">{children}</div>
               </AuthProvider>
             </RootLayoutWrapper>

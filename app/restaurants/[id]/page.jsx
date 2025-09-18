@@ -1560,7 +1560,7 @@ export default function RestaurantPage() {
         </section>
 
         {/* RIGHT: sticky cart (grouped by restaurant name) */}
-        <aside className="sticky top-4 h-[100dvh] w-full max-w-[360px] shrink-0 bg-[#12151a] px-5 pt-6 text-white max-[1024px]:hidden">
+        <aside className="sticky top-4 h-[100dvh] w-full max-w-[360px] shrink-0 bg-[#12151a] px-5 pt-6 text-white max-[1024px]:h-full max-[1024px]:w-full rounded-xl">
           <div className="rounded-xl bg-[#1b2027] p-4 ring-1 ring-white/5">
             <div className="mb-3 flex items-center justify-between gap-2">
               <div className="inline-flex items-center gap-2">
