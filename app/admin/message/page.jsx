@@ -1,3 +1,5 @@
+"use client";
+import React from "react";
 import { MongoClient } from "mongodb";
 
 export default async function MessagesPage() {
