@@ -10,7 +10,7 @@ import {
   faGlobe,
   faPhone,
 } from "@fortawesome/free-solid-svg-icons";
-
+import { API_BASE } from "../../lib/api.js";
 export default function RestaurantManagement() {
   // DATA
   const [restaurants, setRestaurants] = useState([]);
@@ -36,7 +36,7 @@ export default function RestaurantManagement() {
   const [token, setToken] = useState("");
   const [tokenChecked, setTokenChecked] = useState(false);
 
-  const BASE = process.env.NEXT_PUBLIC_API_BASE_REST || "http://localhost:5517";
+  const BASE = process.env.NEXT_PUBLIC_API_BASE_REST || API_BASE;
 
   // ---- helpers
   const readTokenFromStorage = () => {

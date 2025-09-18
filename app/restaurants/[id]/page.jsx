@@ -4,13 +4,12 @@ import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import Image from "next/image";
-
+import { API_BASE } from "../../lib/api.js";
 /* =============================================================================
    Config
 ============================================================================= */
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5517";
-const CART_API_BASE = process.env.NEXT_PUBLIC_CART_API_BASE || API_BASE;
+const API_BASEx = process.env.NEXT_PUBLIC_API_BASE_URL || API_BASE;
+const CART_API_BASE = process.env.NEXT_PUBLIC_CART_API_BASE || API_BASEx;
 const PAGE_SIZE = 9;
 
 /* =============================================================================
@@ -165,7 +164,7 @@ async function ensureAuthProfileCache() {
   const { token, name } = getAuthFromStorage();
   if (!token || name) return;
   try {
-    const res = await fetch(`${API_BASE}/user/profile`, {
+    const res = await fetch(`${API_BASEx}/user/profile`, {
       headers: { Authorization: `Bearer ${token}` },
       cache: "no-store",
     });
@@ -504,7 +503,7 @@ function RatingsSection({ restaurantId }) {
   async function load() {
     setLoading(true);
     setError(null);
-    const url = `${API_BASE}/restaurants/${restaurantId}/ratings`;
+    const url = `${API_BASEx}/restaurants/${restaurantId}/ratings`;
     try {
       const res = await fetch(url, { cache: "no-store" });
       if (!res.ok) throw new Error(`Failed to load ratings (${res.status})`);
@@ -580,7 +579,7 @@ function RatingsSection({ restaurantId }) {
       return;
     }
 
-    const endpoint = `${API_BASE}/restaurants/${restaurantId}/rating`;
+    const endpoint = `${API_BASEx}/restaurants/${restaurantId}/rating`;
     const method = isEditing ? "PUT" : "POST";
     const { ok, json, status } = await authFetchJSON(endpoint, {
       method,
@@ -600,7 +599,7 @@ function RatingsSection({ restaurantId }) {
     if (!isLoggedIn) return;
     if (!confirm("Delete your review?")) return;
 
-    const endpoint = `${API_BASE}/restaurants/${restaurantId}/rating`;
+    const endpoint = `${API_BASEx}/restaurants/${restaurantId}/rating`;
     const { ok, json, status } = await authFetchJSON(endpoint, {
       method: "DELETE",
     });
@@ -897,12 +896,12 @@ export default function RestaurantPage() {
       setLoading(true);
       setErr(null);
       try {
-        const r = await fetchJSON(`${API_BASE}/restaurants/${id}`);
+        const r = await fetchJSON(`${API_BASEx}/restaurants/${id}`);
         if (!r) throw new Error("Restaurant not found");
         const rid = r._id || r.id;
 
         const productsRaw =
-          (await fetchJSON(`${API_BASE}/restaurants/${rid}/products`)) || [];
+          (await fetchJSON(`${API_BASEx}/restaurants/${rid}/products`)) || [];
 
         const products = normalizeMenu(
           Array.isArray(productsRaw)

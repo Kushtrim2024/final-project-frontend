@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
-
+import { API_BASE } from "../../../lib/api.js";
 /* token */
 function getToken() {
   if (typeof window === "undefined") return null;
@@ -31,7 +31,7 @@ export default function AdminUsersPage() {
     setLoading(true);
     setErr("");
     try {
-      const res = await fetch("http://localhost:5517/admin", {
+      const res = await fetch(`${API_BASE}/admin`, {
         method: "GET",
         headers: { Authorization: token ? `Bearer ${token}` : "" },
       });
@@ -85,13 +85,10 @@ export default function AdminUsersPage() {
   async function handleDelete(id) {
     if (!confirm("This admin will be deleted. Are you sure?")) return;
     try {
-      const res = await fetch(
-        `http://localhost:5517/admin/profile/${id}/delete`,
-        {
-          method: "DELETE",
-          headers: { Authorization: token ? `Bearer ${token}` : "" },
-        }
-      );
+      const res = await fetch(`${API_BASE}/admin/profile/${id}/delete`, {
+        method: "DELETE",
+        headers: { Authorization: token ? `Bearer ${token}` : "" },
+      });
       const raw = await res.text();
       let data;
       try {
@@ -146,7 +143,7 @@ export default function AdminUsersPage() {
     };
 
     try {
-      const res = await fetch("http://localhost:5517/admin/register", {
+      const res = await fetch(`${API_BASE}/admin/register`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

@@ -1,7 +1,7 @@
 "use client";
 import React, { useEffect, useMemo, useState } from "react";
 import "../stylesUser/page.css";
-
+import { API_BASE } from "../../lib/api.js";
 // --- Helper: Read token from localStorage (try multiple keys) ---
 function readToken() {
   if (typeof window === "undefined") return null;
@@ -61,13 +61,10 @@ export default function AddressPage() {
 
         // 1) Try direct endpoint: /user/profile/addresses
         try {
-          const res = await fetch(
-            "http://localhost:5517/user/profile/addresses",
-            {
-              headers: { Authorization: `Bearer ${token}` },
-              cache: "no-store",
-            }
-          );
+          const res = await fetch(`${API_BASE}/user/profile/addresses`, {
+            headers: { Authorization: `Bearer ${token}` },
+            cache: "no-store",
+          });
           if (res.ok) {
             list = await res.json();
             if (!Array.isArray(list)) list = [];
@@ -79,7 +76,7 @@ export default function AddressPage() {
         // 2) If empty, fallback to profile
         if (list.length === 0) {
           try {
-            const res = await fetch("http://localhost:5517/user/profile", {
+            const res = await fetch(`${API_BASE}/user/profile`, {
               headers: { Authorization: `Bearer ${token}` },
               cache: "no-store",
             });
@@ -97,7 +94,7 @@ export default function AddressPage() {
         let defaultAddr = null;
         try {
           const res = await fetch(
-            "http://localhost:5517/user/profile/addresses/default",
+            `${API_BASE}/user/profile/addresses/default`,
             {
               headers: { Authorization: `Bearer ${token}` },
               cache: "no-store",
@@ -165,13 +162,10 @@ export default function AddressPage() {
     if (!id) return;
     if (!confirm("⚠️ Do you really want to delete this address?")) return;
     try {
-      const res = await fetch(
-        `http://localhost:5517/user/profile/addresses/${id}`,
-        {
-          method: "DELETE",
-          headers: { Authorization: `Bearer ${token}` },
-        }
-      );
+      const res = await fetch(`${API_BASE}/user/profile/addresses/${id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
       if (!res.ok) throw new Error(`Delete failed (${res.status})`);
       setAddresses((prev) => prev.filter((a) => a.id !== id));
       setMsg("Address deleted.");
@@ -235,17 +229,14 @@ export default function AddressPage() {
     // CREATE
     if (!row?.id) {
       try {
-        const res = await fetch(
-          "http://localhost:5517/user/profile/addresses",
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${token}`,
-            },
-            body: JSON.stringify(editForm),
-          }
-        );
+        const res = await fetch(`${API_BASE}/user/profile/addresses`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(editForm),
+        });
         if (!res.ok) throw new Error(`Create failed (${res.status})`);
         const createdUser = await res.json();
         const last = createdUser?.addresses?.[createdUser.addresses.length - 1]; // the Last Address
@@ -273,7 +264,7 @@ export default function AddressPage() {
     // UPDATE
     try {
       const res = await fetch(
-        `http://localhost:5517/user/profile/addresses/${row._id || row.id}`,
+        `${API_BASE}/user/profile/addresses/${row._id || row.id}`,
         {
           method: "PUT",
           headers: {

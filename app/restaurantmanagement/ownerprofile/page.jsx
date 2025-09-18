@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Image from "next/image";
-
+import { API_BASE } from "../../lib/api.js";
 export default function ProfilePage() {
   const [user, setUser] = useState(null);
   const [editing, setEditing] = useState(false);
@@ -47,7 +47,7 @@ export default function ProfilePage() {
           return;
         }
 
-        const res = await fetch("http://localhost:5517/owner/profile", {
+        const res = await fetch(`${API_BASE}/owner/profile`, {
           method: "GET",
           headers: {
             Authorization: `Bearer ${token}`,
@@ -115,7 +115,7 @@ export default function ProfilePage() {
         return;
       }
 
-      const res = await fetch("http://localhost:5517/owner/profile/update", {
+      const res = await fetch(`${API_BASE}/owner/profile/update`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",

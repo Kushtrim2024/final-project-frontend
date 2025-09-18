@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-
-const API_BASE = "http://localhost:5517";
+import { API_BASE } from "../../lib/api.js";
+const API_BASEx = API_BASE;
 
 export default function SettingsPage() {
   const [token, setToken] = useState(null);
@@ -45,7 +45,7 @@ export default function SettingsPage() {
     (async () => {
       try {
         setLoading(true);
-        const res = await fetch(`${API_BASE}/user/profile`, {
+        const res = await fetch(`${API_BASEx}/user/profile`, {
           headers: { Authorization: `Bearer ${token}` },
           cache: "no-store",
         });
@@ -72,7 +72,7 @@ export default function SettingsPage() {
     (async () => {
       try {
         setAddrLoading(true);
-        const res = await fetch(`${API_BASE}/user/profile/addresses/default`, {
+        const res = await fetch(`${API_BASEx}/user/profile/addresses/default`, {
           headers: { Authorization: `Bearer ${token}` },
           cache: "no-store",
         });
@@ -116,7 +116,7 @@ export default function SettingsPage() {
 
     // 2. Update user basic info
     try {
-      const res = await fetch(`${API_BASE}/user/profile/update`, {
+      const res = await fetch(`${API_BASEx}/user/profile/update`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -138,7 +138,7 @@ export default function SettingsPage() {
     // 3. Update password
     if (form.newPassword) {
       try {
-        const res = await fetch(`${API_BASE}/user/profile/update-password`, {
+        const res = await fetch(`${API_BASEx}/user/profile/update-password`, {
           method: "PUT",
           headers: {
             "Content-Type": "application/json",
@@ -175,7 +175,7 @@ export default function SettingsPage() {
       return;
     setMsg("");
     try {
-      const res = await fetch(`${API_BASE}/user/profile/delete`, {
+      const res = await fetch(`${API_BASEx}/user/profile/delete`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
       });

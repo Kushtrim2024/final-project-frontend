@@ -14,13 +14,12 @@ import {
   Cell,
   Legend,
 } from "recharts";
+import { API_BASE } from "./../../lib/api.js";
 
 /* ================= Helpers & Config ================= */
 
-const BASE_REST =
-  process.env.NEXT_PUBLIC_API_BASE_REST || "http://localhost:5517";
-const BASE_ORDERS =
-  process.env.NEXT_PUBLIC_API_BASE_ORDERS || "http://localhost:5517";
+const BASE_REST = process.env.NEXT_PUBLIC_API_BASE_REST || API_BASE;
+const BASE_ORDERS = process.env.NEXT_PUBLIC_API_BASE_ORDERS || API_BASE;
 
 /** Try to read a token from typical localStorage keys. */
 function readTokenFromStorage() {

@@ -1,12 +1,11 @@
 // lib/ordersApi.js
 import { getAuth } from "./auth";
-
-const API_BASE =
-  process.env.NEXT_PUBLIC_CART_API_BASE || "http://localhost:5517";
+import { API_BASE } from "../lib/api.js";
+const API_BASEx = process.env.NEXT_PUBLIC_CART_API_BASE || API_BASE;
 
 async function api(path, { method = "GET", body } = {}) {
   const { token } = getAuth();
-  const res = await fetch(`${API_BASE}${path}`, {
+  const res = await fetch(`${API_BASEx}${path}`, {
     method,
     headers: {
       "Content-Type": "application/json",

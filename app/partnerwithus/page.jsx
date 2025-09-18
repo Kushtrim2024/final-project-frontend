@@ -4,11 +4,11 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-
+import { API_BASE } from "../lib/api.js";
 // ---- API Endpoints (zentral) ----
-const API_BASE = "http://localhost:5517"; // ⬅️ WICHTIG: /owner, nicht /user
-const LOGIN_URL = `${API_BASE}/owner/login`; // ⬅️ WICHTIG: owner, nicht user
-const REGISTER_URL = `${API_BASE}/owner/register`; // falls Owner-Registrierung genutzt wird
+const API_BASEx = API_BASE; // ⬅️ WICHTIG: /owner, nicht /user
+const LOGIN_URL = `${API_BASEx}/owner/login`; // ⬅️ WICHTIG: owner, nicht user
+const REGISTER_URL = `${API_BASEx}/owner/register`; // falls Owner-Registrierung genutzt wird
 
 export default function PartnerPage() {
   const router = useRouter();

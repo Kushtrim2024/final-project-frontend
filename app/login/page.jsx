@@ -3,7 +3,7 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-
+import { API_BASE } from "../lib/api.js";
 function LoginPage() {
   const router = useRouter();
 
@@ -50,7 +50,7 @@ function LoginPage() {
     setLoginError(null);
     setLoginLoading(true);
     try {
-      const res = await fetch("http://localhost:5517/user/login", {
+      const res = await fetch(`${API_BASE}/user/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
@@ -125,7 +125,7 @@ function LoginPage() {
 
     setRegisterLoading(true);
     try {
-      const res = await fetch("http://localhost:5517/user/register", {
+      const res = await fetch(`${API_BASE}/user/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(reg),

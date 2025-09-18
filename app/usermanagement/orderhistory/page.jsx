@@ -1,6 +1,6 @@
 "use client";
 import React, { useEffect, useMemo, useState } from "react";
-
+import { API_BASE } from "../../lib/api.js";
 /**
  * Frontend-only Order History page
  * - Fetches ALL orders once from /orders/history with a Bearer token (no backend changes).
@@ -238,7 +238,7 @@ export default function OrderHistoryPage() {
           return;
         }
 
-        const res = await fetch("http://localhost:5517/orders/history", {
+        const res = await fetch(`${API_BASE}/orders/history`, {
           headers: { Authorization: `Bearer ${token}` },
         });
 
@@ -331,13 +331,10 @@ export default function OrderHistoryPage() {
       const token =
         typeof window !== "undefined" ? localStorage.getItem("token") : null;
 
-      const res = await fetch(
-        `http://localhost:5517/orders/cancel/${order._id}`,
-        {
-          method: "PUT",
-          headers: { Authorization: `Bearer ${token}` },
-        }
-      );
+      const res = await fetch(`${API_BASE}/orders/cancel/${order._id}`, {
+        method: "PUT",
+        headers: { Authorization: `Bearer ${token}` },
+      });
 
       if (!res.ok) {
         const text = await res.text();

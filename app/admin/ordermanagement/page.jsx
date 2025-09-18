@@ -2,8 +2,9 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import CSVExportButton from "../componentsadmin/CSVExportButton.jsx";
+import { API_BASE } from "../../lib/api.js";
 
-const BASE = process.env.NEXT_PUBLIC_API_BASE_ORDERS || "http://localhost:5517";
+const BASE = process.env.NEXT_PUBLIC_API_BASE_ORDERS || API_BASE;
 
 /* ================= Helpers ================= */
 

@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 import { Menu, X } from "lucide-react"; // für Icons
 import Image from "next/image";
-
+import { API_BASE } from "../lib/api.js";
 export default function Navbar({ children }) {
   const pathname = usePathname();
   const router = useRouter();

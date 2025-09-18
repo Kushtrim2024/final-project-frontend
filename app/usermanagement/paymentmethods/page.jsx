@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Image from "next/image";
-
+import { API_BASE } from "../../lib/api.js";
 export default function PaymentMethodsPage() {
   const [paymentMethods, setPaymentMethods] = useState([]);
   const [newMethod, setNewMethod] = useState({
@@ -51,7 +51,7 @@ export default function PaymentMethodsPage() {
   // ✅ Payment Methods laden nach Login
   useEffect(() => {
     if (!token) return;
-    fetch("http://localhost:5517/user/payment-methods", {
+    fetch(`${API_BASE}/user/payment-methods`, {
       method: "GET",
       headers: { Authorization: `Bearer ${token}` },
     })
@@ -78,7 +78,7 @@ export default function PaymentMethodsPage() {
     }
 
     try {
-      const res = await fetch("http://localhost:5517/user/add-payment", {
+      const res = await fetch(`${API_BASE}/user/add-payment`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -116,7 +116,7 @@ export default function PaymentMethodsPage() {
     if (!token) return;
 
     try {
-      const res = await fetch("http://localhost:5517/user/delete-payment", {
+      const res = await fetch(`${API_BASE}/user/delete-payment`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

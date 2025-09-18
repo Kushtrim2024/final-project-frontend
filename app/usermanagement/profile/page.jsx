@@ -2,9 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
-
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5517";
+import { API_BASE } from "../../lib/api.js";
+const API_BASEx = process.env.NEXT_PUBLIC_API_BASE_URL || API_BASE;
 
 export default function ProfilePage() {
   const [token, setToken] = useState(null);
@@ -46,7 +45,7 @@ export default function ProfilePage() {
       setMsg("");
       setLoading(true);
       try {
-        const res = await fetch(`${API_BASE}/user/profile`, {
+        const res = await fetch(`${API_BASEx}/user/profile`, {
           method: "GET",
           headers: { Authorization: `Bearer ${token}` },
           cache: "no-store",
@@ -72,7 +71,7 @@ export default function ProfilePage() {
     (async () => {
       setAddrLoading(true);
       try {
-        const res = await fetch(`${API_BASE}/user/profile/addresses/default`, {
+        const res = await fetch(`${API_BASEx}/user/profile/addresses/default`, {
           method: "GET",
           headers: { Authorization: `Bearer ${token}` },
           cache: "no-store",
@@ -96,7 +95,7 @@ export default function ProfilePage() {
     fd.append("avatar", photoFile); // ✅ backend fields: avatar/photo
 
     try {
-      const res = await fetch(`${API_BASE}/user/profile/photo`, {
+      const res = await fetch(`${API_BASEx}/user/profile/photo`, {
         method: "PUT",
         headers: { Authorization: `Bearer ${token}` },
         body: fd,

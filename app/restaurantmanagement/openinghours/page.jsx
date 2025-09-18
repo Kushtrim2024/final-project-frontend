@@ -1,10 +1,10 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-
+import { API_BASE } from "../../lib/api.js";
 export default function OpeningHoursPage() {
-  const API_GET = "http://localhost:5517/owner/restaurants/my-restaurant";
-  const API_PUT = "http://localhost:5517/owner/restaurants/my-restaurant";
+  const API_GET = `${API_BASE}/owner/restaurants/my-restaurant`;
+  const API_PUT = `${API_BASE}/owner/restaurants/my-restaurant`;
 
   const daysOfWeek = [
     "monday",

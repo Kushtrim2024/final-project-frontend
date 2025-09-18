@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect } from "react";
-
+import { API_BASE } from "../../lib/api.js";
 export default function FeedbackPage() {
   const [ratings, setRatings] = useState([]);
   const [responses, setResponses] = useState({}); // vorhandene Owner-Antworten
@@ -31,7 +31,7 @@ export default function FeedbackPage() {
         setLoading(true);
         setError(null);
         const res = await fetch(
-          `http://localhost:5517/owner/restaurants/my-restaurant/ratings?page=${page}&limit=5`,
+          `${API_BASE}/owner/restaurants/my-restaurant/ratings?page=${page}&limit=5`,
           { headers: { Authorization: `Bearer ${token}` } }
         );
         const data = await res.json();
@@ -73,7 +73,7 @@ export default function FeedbackPage() {
 
     try {
       const res = await fetch(
-        `http://localhost:5517/owner/restaurants/my-restaurant/ratings/${ratingId}/response`,
+        `${API_BASE}/owner/restaurants/my-restaurant/ratings/${ratingId}/response`,
         {
           method,
           headers: {
@@ -102,8 +102,7 @@ export default function FeedbackPage() {
     }
   };
 
-  if (error)
-    return <p className="text-red-500 text-center mt-10">{error}</p>;
+  if (error) return <p className="text-red-500 text-center mt-10">{error}</p>;
   if (loading) return <p className="text-center mt-10">Loading ratings...</p>;
 
   return (
@@ -117,7 +116,8 @@ export default function FeedbackPage() {
       {ratings.map((r) => (
         <div key={r._id} className="mb-6 border-b pb-4">
           <p>
-            <span className="font-semibold">Anonymous</span> | Rating: {r.rating} / 5
+            <span className="font-semibold">Anonymous</span> | Rating:{" "}
+            {r.rating} / 5
           </p>
           <p className="mb-2">{r.comment}</p>
 

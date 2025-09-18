@@ -6,7 +6,7 @@ import Link from "next/link";
 import NavUser from "./componentsUser/NavUser";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-
+import { API_BASE } from "../lib/api.js";
 export default function UserLayout({ children }) {
   const router = useRouter();
 

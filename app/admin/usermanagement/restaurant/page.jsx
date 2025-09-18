@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
-
+import { API_BASE } from "../../../lib/api.js";
 function getToken() {
   if (typeof window === "undefined") return null;
   return localStorage.getItem("token");
@@ -26,7 +26,7 @@ export default function RestaurantOwnersPage() {
     setLoading(true);
     setErr("");
     try {
-      const res = await fetch("http://localhost:5517/admin/restaurant-owners", {
+      const res = await fetch(`${API_BASE}/admin/restaurant-owners`, {
         method: "GET",
         headers: { Authorization: token ? `Bearer ${token}` : "" },
       });
@@ -83,13 +83,10 @@ export default function RestaurantOwnersPage() {
     if (!confirm("This restaurant owner will be deleted. Are you sure?"))
       return;
     try {
-      const res = await fetch(
-        `http://localhost:5517/admin/restaurant-owners/${id}`,
-        {
-          method: "DELETE",
-          headers: { Authorization: token ? `Bearer ${token}` : "" },
-        }
-      );
+      const res = await fetch(`${API_BASE}/admin/restaurant-owners/${id}`, {
+        method: "DELETE",
+        headers: { Authorization: token ? `Bearer ${token}` : "" },
+      });
       const raw = await res.text();
       let data;
       try {
@@ -151,7 +148,7 @@ export default function RestaurantOwnersPage() {
     };
 
     try {
-      const res = await fetch("http://localhost:5517/owner/register", {
+      const res = await fetch(`${API_BASE}/owner/register`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

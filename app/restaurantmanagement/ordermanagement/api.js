@@ -1,6 +1,5 @@
-// orders/services/api.js
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5517";
+import { API_BASE } from "../../lib/api.js";
+const API_BASEx = process.env.NEXT_PUBLIC_API_URL || API_BASE;
 
 // optional: Token aus LocalStorage lesen (falls euer Backend JWT nutzt)
 function readToken() {
@@ -27,7 +26,7 @@ function authHeaders() {
 
 /** Liste: GET /orders (erlaubt: user, owner, admin) */
 export async function getAllOrders() {
-  const res = await fetch(`${API_BASE}/orders`, {
+  const res = await fetch(`${API_BASEx}/orders`, {
     method: "GET",
     headers: { ...authHeaders() },
     credentials: "include",
@@ -41,7 +40,7 @@ export async function getAllOrders() {
 
 /** Details: GET /orders/details/:id */
 export async function getOrderDetails(id) {
-  const res = await fetch(`${API_BASE}/orders/details/${id}`, {
+  const res = await fetch(`${API_BASEx}/orders/details/${id}`, {
     method: "GET",
     headers: { ...authHeaders() },
     credentials: "include",
@@ -55,7 +54,7 @@ export async function getOrderDetails(id) {
 
 /** Update: PUT /orders/:orderId  (Backend erlaubt hier NUR role "user") */
 export async function updateOrderStatus(orderId, status) {
-  const res = await fetch(`${API_BASE}/orders/${orderId}`, {
+  const res = await fetch(`${API_BASEx}/orders/${orderId}`, {
     method: "PUT",
     headers: {
       "Content-Type": "application/json",

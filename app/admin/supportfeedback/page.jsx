@@ -1,8 +1,8 @@
 "use client";
 import React, { useEffect, useMemo, useState } from "react";
-
+import { API_BASE } from "../../lib/api.js";
 // ---- Adjust this if your env var key differs ----
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:5517";
+const API_BASEx = process.env.NEXT_PUBLIC_API_BASE || API_BASE;
 
 // Try to read a JWT from cookies or localStorage (works in Next.js client components)
 function getToken() {
@@ -53,8 +53,8 @@ export default function RatingsManagerPage() {
       try {
         // Admin list of restaurants if available, fall back to public list
         const restaurantListEndpoints = [
-          `${API_BASE}/admin/restaurants`,
-          `${API_BASE}/restaurants`,
+          `${API_BASEx}/admin/restaurants`,
+          `${API_BASEx}/restaurants`,
         ];
         let restaurants = [];
         for (const url of restaurantListEndpoints) {
@@ -84,8 +84,8 @@ export default function RatingsManagerPage() {
           restaurants.map(async (r) => {
             const rid = r.id;
             const candidates = [
-              `${API_BASE}/admin/restaurants/${rid}/ratings`,
-              `${API_BASE}/restaurants/${rid}/ratings`,
+              `${API_BASEx}/admin/restaurants/${rid}/ratings`,
+              `${API_BASEx}/restaurants/${rid}/ratings`,
             ];
             for (const url of candidates) {
               try {
@@ -190,10 +190,10 @@ export default function RatingsManagerPage() {
   async function handleDelete({ restaurantId, ratingId }) {
     // Prefer admin endpoint if we have a ratingId
     const endpoints = ratingId
-      ? [`${API_BASE}/admin/restaurants/${restaurantId}/ratings/${ratingId}`]
+      ? [`${API_BASEx}/admin/restaurants/${restaurantId}/ratings/${ratingId}`]
       : [
           // fallback: delete my own rating (no ratingId on public route)
-          `${API_BASE}/restaurants/${restaurantId}/rating`,
+          `${API_BASEx}/restaurants/${restaurantId}/rating`,
         ];
 
     let lastErr = null;

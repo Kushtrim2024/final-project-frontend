@@ -4,10 +4,9 @@ import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-
+import { API_BASE } from "../lib/api.js";
 const API_URL =
-  process.env.NEXT_PUBLIC_API_URL?.replace(/\/+$/, "") ||
-  "http://localhost:5517";
+  process.env.NEXT_PUBLIC_API_URL?.replace(/\/+$/, "") || API_BASE;
 
 // (optional) If you want to read the role from JWT
 function readRoleFromJWT(token) {

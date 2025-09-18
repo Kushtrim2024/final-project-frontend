@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, Fragment } from "react";
-
+import { API_BASE } from "../../lib/api.js";
 export default function OrderManagementPage() {
   // ---------- State ----------
   const [orders, setOrders] = useState([]);
@@ -22,7 +22,7 @@ export default function OrderManagementPage() {
   const [detailsError, setDetailsError] = useState("");
 
   // ---------- Config & helpers ----------
-  const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5517";
+  const API_BASEx = process.env.NEXT_PUBLIC_API_URL || API_BASE;
 
   // Owner endpoints
   const ORDERS_ENDPOINTS = {
@@ -72,7 +72,7 @@ export default function OrderManagementPage() {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch(`${API_BASE}${ORDERS_ENDPOINTS.list}`, {
+      const res = await fetch(`${API_BASEx}${ORDERS_ENDPOINTS.list}`, {
         headers: authHeaders(),
         cache: "no-store",
       });
@@ -158,7 +158,7 @@ export default function OrderManagementPage() {
   // ---------- Mutations ----------
   async function updateStatus(orderId, newStatus) {
     try {
-      const res = await fetch(`${API_BASE}${ORDERS_ENDPOINTS.updateStatus}`, {
+      const res = await fetch(`${API_BASEx}${ORDERS_ENDPOINTS.updateStatus}`, {
         method: "PUT",
         headers: authHeaders(),
         body: JSON.stringify({ orderId, newStatus }),
@@ -196,7 +196,7 @@ export default function OrderManagementPage() {
     if (!confirm("Are you sure you want to delete this order?")) return;
     try {
       const res = await fetch(
-        `${API_BASE}${ORDERS_ENDPOINTS.remove(orderId)}`,
+        `${API_BASEx}${ORDERS_ENDPOINTS.remove(orderId)}`,
         {
           method: "DELETE",
           headers: authHeaders(),
@@ -228,7 +228,7 @@ export default function OrderManagementPage() {
     setDetailsLoading(true);
     try {
       const res = await fetch(
-        `${API_BASE}${ORDERS_ENDPOINTS.details(orderId)}`,
+        `${API_BASEx}${ORDERS_ENDPOINTS.details(orderId)}`,
         {
           headers: authHeaders(),
         }
