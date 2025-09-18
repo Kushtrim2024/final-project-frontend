@@ -1,6 +1,5 @@
-// app/page.jsx
 "use client";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState, Suspense } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
@@ -232,7 +231,7 @@ function filterByCoordsFrontend(items, lat, lng, maxKm = 25) {
   });
 }
 
-export default function Home() {
+function Home() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
@@ -1243,7 +1242,13 @@ export default function Home() {
     </div>
   );
 }
-
+export default function HomePage() {
+  return (
+    <Suspense fallback={<LoaderOverlay text="Loading..." />}>
+      <Home />
+    </Suspense>
+  );
+}
 /* ---------- helpers ---------- */
 function slugify(text) {
   return (text || "")
