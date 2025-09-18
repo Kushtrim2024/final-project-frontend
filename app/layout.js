@@ -1,8 +1,8 @@
 import "./globals.css";
 import RootLayoutWrapper from "./components/RootLayoutWrapper";
 import AuthProvider from "./components/auth-provider";
-import { SessionProvider } from "next-auth/react";
 import Providers from "./components/Providers";
+import { Suspense } from "react";
 
 export const metadata = {
   title: "Liefrik",
@@ -29,7 +29,14 @@ export default function RootLayout({ children }) {
         <Providers>
           <RootLayoutWrapper>
             <AuthProvider>
-              <div className="min-h-[35rem]">{children}</div>
+              {/* Wrap children once with Suspense; do not render twice */}
+              <Suspense
+                fallback={
+                  <div className="p-4 text-sm text-gray-700">Loading…</div>
+                }
+              >
+                <div className="min-h-[35rem]">{children}</div>
+              </Suspense>
             </AuthProvider>
           </RootLayoutWrapper>
         </Providers>
