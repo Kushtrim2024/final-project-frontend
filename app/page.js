@@ -1,11 +1,15 @@
-import React, { Suspense } from "react";
+// app/page.js
+import { Suspense } from "react";
+import Home from "./components/Home.jsx";
 
-import Home from "./components/Home";
-import LoaderOverlay from "./components/LoaderOverlay";
+export const dynamic = "force-dynamic"; // avoid prerendering "/"
+export const revalidate = 0; // no ISR for this page
 
-export default function HomePage() {
+export default function Page() {
   return (
-    <Suspense fallback={<LoaderOverlay text="Loading..." />}>
+    <Suspense
+      fallback={<div className="p-4 text-sm text-gray-700">Loading…</div>}
+    >
       <Home />
     </Suspense>
   );

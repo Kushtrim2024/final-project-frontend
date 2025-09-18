@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faSearch } from "@fortawesome/free-solid-svg-icons";
-import LoaderOverlay from "./LoaderOverlay";
+import LoaderOverlay from "./LoaderOverlay.jsx";
 import Image from "next/image";
 
 const API_BASE =
