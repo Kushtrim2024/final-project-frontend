@@ -197,9 +197,9 @@ export default function RestaurantOwnersPage() {
 
   return (
     <div className="p-6 text-gray-800">
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex flex-row max-[600px]:flex-col max-[600px]:items-start items-center justify-between mb-4">
         <h2 className="text-2xl font-bold max-[700px]:text-[16px]">
-          Admin - User Management (Restaurants)
+          Admin - User Management
         </h2>
         <button
           className="px-3 py-2 rounded bg-green-600 text-white hover:bg-green-700 max-[700px]:text-[12px] max-[700px]:px-1"
@@ -235,9 +235,6 @@ export default function RestaurantOwnersPage() {
               </option>
             ))}
           </select>
-        </div>
-        <div className="text-sm text-gray-800">
-          Page <b>{page}</b> / {totalPages} • <b>{filtered.length}</b> items
         </div>
       </div>
 
@@ -293,8 +290,11 @@ export default function RestaurantOwnersPage() {
       </div>
 
       {/* Pagination: Prev | dynamic buttons | Next */}
-      <div className="flex items-center justify-between gap-3 p-3 border-t bg-white mt-4">
-        <div className="flex items-center gap-2">
+      <div className="flex flex-row max-[600px]:flex-col  items-center justify-between gap-3 p-3 border-t bg-white mt-4">
+        <div className="text-sm text-gray-800">
+          Page <b>{page}</b> / {totalPages} • <b>{filtered.length}</b> items
+        </div>
+        <div className="flex items-center justify-between gap-2">
           <button
             className="px-2 py-1 border rounded disabled:opacity-50"
             onClick={() => setPage((p) => Math.max(1, p - 1))}
@@ -339,10 +339,10 @@ export default function RestaurantOwnersPage() {
       </div>
 
       {addingOpen && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+        <div className="fixed top-30 inset-0 bg-black/80 flex items-start justify-center p-4 z-50 overflow-auto">
           <form
             onSubmit={handleAdd}
-            className="bg-white rounded-lg p-6 w-full max-w-md space-y-3"
+            className="bg-white rounded-lg p-6 w-full max-w-md space-y-3 "
           >
             <h3 className="text-lg font-semibold mb-2">Add Owner</h3>
 

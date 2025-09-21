@@ -324,8 +324,8 @@ export default function PartnerPage() {
 
       {/* Register Modal */}
       {showRegisterModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/10">
-          <div className="bg-white rounded-lg shadow-xl p-4 w-[48rem] max-w-[95vw] relative m-4 max-[700px]:text-[12px]">
+        <div className="fixed inset-0 z-50 flex  items-start justify-center bg-gray-900/10 overflow-y-auto  ">
+          <div className="relative flex flex-col items-center justify-center min-h-auto pt-20 pb-20 bg-white  mt-5  mb-5 rounded-lg shadow-xl p-4 w-[48rem] max-w-[95vw]  max-[700px]:text-[12px]  max-[700px]:h-auto max-[700px]:overflow-y-scroll ">
             <button
               onClick={() => setShowRegisterModal(false)}
               className="absolute top-2 right-3 text-gray-500 hover:text-gray-700 text-3xl leading-none"
@@ -334,7 +334,7 @@ export default function PartnerPage() {
               &times;
             </button>
 
-            <div className="flex flex-col items-center mb-4">
+            <div className=" flex flex-col items-center mb-4 ">
               <h2 className="text-xl font-bold text-gray-900">
                 Become a Partner
               </h2>

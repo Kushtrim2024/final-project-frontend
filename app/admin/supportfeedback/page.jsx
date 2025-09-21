@@ -228,80 +228,80 @@ export default function RatingsManagerPage() {
   }
 
   return (
-    <div className="p-6">
-      <h2 className="text-2xl font-bold text-gray-800 mb-4">
+    <div className="p-6 max-[700px]:text-[14px]">
+      <h2 className="text-2xl font-bold text-gray-800 mb-4 max-[700px]:text-[18px] ">
         Ratings & Reviews
       </h2>
 
       {/* Filters */}
-      <div className="flex flex-wrap gap-3 items-center mb-4">
-        <input
-          className="border rounded px-3 py-2 text-gray-800 min-w-[260px]"
-          placeholder="Search: restaurant, user, comment, stars…"
-          value={query}
-          onChange={(e) => {
-            setQuery(e.target.value);
-            setPage(1);
-          }}
-        />
+      <div className="flex flex-col gap-3 mb-2">
+        <div className="flex flex-row max-[1300px]:flex-col max-[1300px]:items-start gap-3 items-center mb-4">
+          <input
+            className="border rounded px-3 py-2 text-gray-800 min-w-[240px]"
+            placeholder="Search: restaurant, user, comment, stars…"
+            value={query}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setPage(1);
+            }}
+          />
 
-        <label className="text-sm text-gray-700">Min ⭐</label>
-        <select
-          className="border rounded px-2 py-2 text-gray-800"
-          value={minStars}
-          onChange={(e) => {
-            setMinStars(Number(e.target.value));
-            setPage(1);
-          }}
-        >
-          {[0, 1, 2, 3, 4, 5].map((n) => (
-            <option key={String(n)} value={n}>
-              {n}
-            </option>
-          ))}
-        </select>
+          <label className="text-sm text-gray-700">Min ⭐</label>
+          <select
+            className="border rounded px-2 py-2 text-gray-800"
+            value={minStars}
+            onChange={(e) => {
+              setMinStars(Number(e.target.value));
+              setPage(1);
+            }}
+          >
+            {[0, 1, 2, 3, 4, 5].map((n) => (
+              <option key={String(n)} value={n}>
+                {n}
+              </option>
+            ))}
+          </select>
 
-        {/* New: Restaurant filter */}
-        <label className="text-sm text-gray-700">Restaurant</label>
-        <select
-          className="border rounded px-2 py-2 text-gray-800 min-w-[200px]"
-          value={selectedRestaurant}
-          onChange={(e) => {
-            setSelectedRestaurant(e.target.value);
-            setPage(1);
-          }}
-        >
-          <option value="all">All</option>
-          {restaurantOptions.map((r) => (
-            <option key={r.id} value={r.id}>
-              {r.name}
-            </option>
-          ))}
-        </select>
+          {/* New: Restaurant filter */}
+          <label className="text-sm text-gray-700">Restaurant</label>
+          <select
+            className="border rounded px-2 py-2 text-gray-800 min-w-[240px]"
+            value={selectedRestaurant}
+            onChange={(e) => {
+              setSelectedRestaurant(e.target.value);
+              setPage(1);
+            }}
+          >
+            <option value="all">All</option>
+            {restaurantOptions.map((r) => (
+              <option key={r.id} value={r.id}>
+                {r.name}
+              </option>
+            ))}
+          </select>
 
-        {/* New: User filter */}
-        <label className="text-sm text-gray-700">User</label>
-        <select
-          className="border rounded px-2 py-2 text-gray-800 min-w-[240px]"
-          value={selectedUser}
-          onChange={(e) => {
-            setSelectedUser(e.target.value);
-            setPage(1);
-          }}
-        >
-          <option value="all">All</option>
-          {userOptions.map((u) => (
-            <option key={u.id} value={u.id}>
-              {u.label}
-            </option>
-          ))}
-        </select>
-
+          {/* New: User filter */}
+          <label className="text-sm text-gray-700">User</label>
+          <select
+            className="border rounded px-2 py-2 text-gray-800 min-w-[240px]"
+            value={selectedUser}
+            onChange={(e) => {
+              setSelectedUser(e.target.value);
+              setPage(1);
+            }}
+          >
+            <option value="all">All</option>
+            {userOptions.map((u) => (
+              <option key={u.id} value={u.id}>
+                {u.label}
+              </option>
+            ))}
+          </select>
+        </div>
         <div className="ml-auto text-sm text-gray-700">
           Total: <span className="font-semibold">{totalItems}</span> items
         </div>
       </div>
-
       {/* Table */}
       <div className="relative rounded bg-white border border-gray-200">
         <div className="max-h-[70vh] overflow-auto">
@@ -457,14 +457,9 @@ function Pagination({ page, setPage, pageSize, setPageSize, totalItems }) {
   const buttons = getPageButtons(page, totalPages);
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 p-3 border-t bg-white mt-4 rounded text-gray-800">
-      <div className="text-sm">
-        Page <span className="font-semibold">{page}</span>/{totalPages} •{" "}
-        <span className="font-semibold">{totalItems}</span> items
-      </div>
-
-      <div className="flex items-center gap-2">
-        <label className="text-sm max-[750px]:hidden">Rows:</label>
+    <div className="flex flex-row justify-between  max-[700px]:flex-col  gap-3 p-1 border-t bg-white mt-4 rounded text-gray-800">
+      <div className="flex items-center justify-between gap-2 ">
+        <label className="text-sm ">Rows:</label>
         <select
           className="border rounded px-2 py-1"
           value={pageSize}
@@ -479,7 +474,8 @@ function Pagination({ page, setPage, pageSize, setPageSize, totalItems }) {
             </option>
           ))}
         </select>
-
+      </div>
+      <div className="text-sm text-gray-700 flex flex-row items-center justify-center ">
         <button
           className="px-2 py-1 border rounded disabled:opacity-50"
           onClick={() => setPage((p) => Math.max(1, p - 1))}
@@ -508,7 +504,6 @@ function Pagination({ page, setPage, pageSize, setPageSize, totalItems }) {
             )
           )}
         </div>
-
         <button
           className="px-2 py-1 border rounded disabled:opacity-50"
           onClick={() => setPage((p) => Math.min(totalPages, p + 1))}

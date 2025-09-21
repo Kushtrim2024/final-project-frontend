@@ -19,9 +19,9 @@ export default function NavAdmin() {
     pathname === href || pathname.startsWith(href + "/");
 
   return (
-    <nav className="w-full">
+    <nav className="w-full  max-[600px]:text-[12px] ">
       {/* Desktop */}
-      <ul className="hidden md:flex items-center gap-2 ">
+      <ul className="hidden md:flex items-center gap-2  ">
         {links.map((l) => (
           <li key={l.href}>
             <Link

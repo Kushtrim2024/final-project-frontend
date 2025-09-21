@@ -329,16 +329,16 @@ export default function RestaurantProfile() {
         <label className="block mb-2 font-semibold">
           Cover Photo (Background)
         </label>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-col justify-center  gap-1">
           <input type="file" accept="image/*" onChange={onCoverChange} />
           <button
             type="button"
             onClick={handleUploadCover}
             disabled={!coverFile || uploadingCover || !restaurantId}
-            className="px-4 py-2 rounded bg-neutral-800 text-white disabled:opacity-50"
+            className="px-4 py-2 rounded bg-neutral-800 text-white disabled:opacity-50 "
             title={!restaurantId ? "Restaurant id missing" : "Upload cover"}
           >
-            {uploadingCover ? "Uploading…" : "Upload Cover to Cloudinary"}
+            {uploadingCover ? "Uploading…" : "Upload Cloudinary"}
           </button>
         </div>
         <p className="text-xs text-gray-500 mt-1">
@@ -394,7 +394,7 @@ export default function RestaurantProfile() {
         </div>
       </div>
 
-      <div className="mb-4 flex gap-4">
+      <div className="mb-4 flex flex-row max-[800px]:flex-col gap-4">
         <input
           type="number"
           placeholder="€ Minimum Order"

@@ -520,7 +520,7 @@ export default function CheckoutPage() {
                   } catch {}
                   if (typeof window !== "undefined") window.location.reload();
                 }}
-                className="rounded-md px-2 py-1 text-sm bg-orange-400  hover:bg-rose-600 hover:text-white"
+                className="rounded-md px-2 py-1 text-sm bg-orange-400  hover:bg-rose-600 hover:text-white  cursor-pointer"
               >
                 Logout
               </button>
@@ -568,7 +568,7 @@ export default function CheckoutPage() {
               <div className="flex items-center gap-2">
                 <label className="text-xs">Groups / page:</label>
                 <select
-                  className="rounded-md border border-slate-300 px-2 py-1 text-xs"
+                  className="rounded-md border border-slate-300 px-2 py-1 text-xs  cursor-pointer"
                   value={groupsPerPage}
                   onChange={(e) => {
                     setGroupsPerPage(
@@ -685,13 +685,13 @@ export default function CheckoutPage() {
 
                             <div className="flex gap-2">
                               <button
-                                className="text-xs text-slate-600 hover:text-slate-900"
+                                className="text-xs text-slate-600 hover:text-slate-900 cursor-pointer"
                                 onClick={() => openEdit(idx)}
                               >
                                 Edit
                               </button>
                               <button
-                                className="text-xs text-rose-600 hover:text-rose-700"
+                                className="text-xs text-rose-600 hover:text-rose-700 cursor-pointer"
                                 onClick={() => removeItem(idx)}
                               >
                                 Remove
@@ -702,7 +702,7 @@ export default function CheckoutPage() {
                           <div className="mt-3 flex items-center justify-between">
                             <div className="inline-flex items-center rounded-lg border border-slate-200">
                               <button
-                                className="h-8 w-8 text-lg"
+                                className="h-8 w-8 text-lg cursor-pointer"
                                 onClick={() => changeQty(idx, -1)}
                               >
                                 –
@@ -711,7 +711,7 @@ export default function CheckoutPage() {
                                 {it.qty}
                               </div>
                               <button
-                                className="h-8 w-8 text-lg"
+                                className="h-8 w-8 text-lg cursor-pointer"
                                 onClick={() => changeQty(idx, +1)}
                               >
                                 +
@@ -836,12 +836,12 @@ export default function CheckoutPage() {
             </div>
 
             <div className="rounded-2xl bg-white p-4 ring-1 ring-black/5">
-              <div className="mb-3 text-sm font-semibold text-slate-800">
+              <div className="mb-3 text-sm font-semibold text-slate-800 ">
                 Delivery / Pickup
               </div>
               <div className="flex gap-2">
                 <button
-                  className={`rounded-lg border px-3 py-2 text-sm ${
+                  className={`rounded-lg border px-3 py-2 text-sm cursor-pointer ${
                     deliveryType === "delivery"
                       ? "border-rose-600 bg-rose-50"
                       : "border-slate-200 bg-white"
@@ -851,7 +851,7 @@ export default function CheckoutPage() {
                   Delivery
                 </button>
                 <button
-                  className={`rounded-lg border px-3 py-2 text-sm ${
+                  className={`rounded-lg border px-3 py-2 text-sm cursor-pointer ${
                     deliveryType === "takeaway"
                       ? "border-rose-600 bg-rose-50"
                       : "border-slate-200 bg-white"
@@ -894,7 +894,7 @@ export default function CheckoutPage() {
 
               {savedMethods.length > 0 && (
                 <div className="space-y-2">
-                  <div className="text-xs text-slate-500 mb-2">
+                  <div className="text-xs text-slate-500 mb-2 ">
                     Saved methods
                   </div>
                   {savedMethods.map((m) => (
@@ -911,7 +911,7 @@ export default function CheckoutPage() {
                       }}
                       type="button"
                     >
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 cursor-pointer">
                         {m.icon && (
                           <Image
                             src={m.icon}
@@ -931,7 +931,7 @@ export default function CheckoutPage() {
               <div className="mt-4">
                 <button
                   type="button"
-                  className={`text-sm underline ${
+                  className={`text-sm underline  cursor-pointer ${
                     useNewMethod ? "text-rose-700" : "text-slate-700"
                   }`}
                   onClick={() => setUseNewMethod((v) => !v)}
@@ -946,11 +946,11 @@ export default function CheckoutPage() {
 
               {useNewMethod || savedMethods.length === 0 ? (
                 <div className="mt-3 space-y-3">
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap gap-2 ">
                     {["card", "paypal", "cod"].map((pm) => (
                       <button
                         key={pm}
-                        className={`rounded-lg border px-3 py-2 text-sm capitalize ${
+                        className={`rounded-lg border px-3 py-2 text-sm capitalize  cursor-pointer ${
                           newMethodType === pm
                             ? "border-rose-600 bg-rose-50"
                             : "border-slate-200 bg-white"
@@ -1019,7 +1019,7 @@ export default function CheckoutPage() {
           </div>
 
           <button
-            className="w-full rounded-lg bg-rose-600 py-3 font-semibold text-white hover:bg-rose-700 disabled:opacity-60"
+            className="w-full rounded-lg bg-rose-600 py-3 font-semibold text-white hover:bg-rose-700 disabled:opacity-60 cursor-pointer"
             disabled={!items.length}
             onClick={handlePlaceOrder}
           >
@@ -1031,7 +1031,7 @@ export default function CheckoutPage() {
       {/* EDIT MODAL =========================================================== */}
       {editOpen && editIdx != null && items[editIdx] && (
         <div
-          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50"
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50  "
           onClick={() => setEditOpen(false)}
         >
           <div
@@ -1042,7 +1042,7 @@ export default function CheckoutPage() {
               <div className="flex items-start justify-between gap-3">
                 <h3 className="text-lg font-bold text-slate-900">Edit item</h3>
                 <button
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white"
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white cursor-pointer"
                   onClick={() => setEditOpen(false)}
                   aria-label="Close"
                 >
@@ -1120,7 +1120,7 @@ export default function CheckoutPage() {
                                     : "border-slate-200 bg-white hover:bg-slate-50"
                                 }`}
                               >
-                                <span className="flex items-center gap-2">
+                                <span className="flex items-center gap-2 cursor-pointer">
                                   <input
                                     type="checkbox"
                                     checked={checked}
@@ -1156,14 +1156,14 @@ export default function CheckoutPage() {
                       </span>
                       <div className="inline-flex items-center rounded-lg border border-slate-200">
                         <button
-                          className="h-9 w-9 text-lg"
+                          className="h-9 w-9 text-lg cursor-pointer"
                           onClick={() => setEditQty((q) => Math.max(1, q - 1))}
                         >
                           –
                         </button>
                         <div className="w-10 text-center">{editQty}</div>
                         <button
-                          className="h-9 w-9 text-lg"
+                          className="h-9 w-9 text-lg cursor-pointer"
                           onClick={() => setEditQty((q) => Math.min(99, q + 1))}
                         >
                           +
@@ -1174,13 +1174,13 @@ export default function CheckoutPage() {
                     {/* Actions */}
                     <div className="mt-5 flex items-center justify-end gap-2">
                       <button
-                        className="rounded-lg px-4 py-2 text-sm ring-1 ring-slate-200 hover:bg-slate-50"
+                        className="rounded-lg px-4 py-2 text-sm ring-1 ring-slate-200 hover:bg-slate-50 cursor-pointer"
                         onClick={() => setEditOpen(false)}
                       >
                         Cancel
                       </button>
                       <button
-                        className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-700"
+                        className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-700 cursor-pointer"
                         onClick={saveEdit}
                       >
                         Save changes

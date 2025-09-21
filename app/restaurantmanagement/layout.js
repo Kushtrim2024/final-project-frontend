@@ -58,22 +58,22 @@ export default function Navbar({ children }) {
             <Image
               src="/logo.png"
               alt="Logo"
-              className="w-20 h-20 object-contain"
-              width={80}
-              height={80}
+              className="w-20 h-20 max-[700px]:w-16 max-[700px]:h-16"
+              width={180}
+              height={180}
             />
           </Link>
         </div>
 
         {/* Hamburger Mobile */}
-        <div className="sm:hidden flex justify-end w-full mt-2">
+        <div className=" flex justify-end min-[1024px]:hidden w-full mt-2">
           <button onClick={toggleMenu} className="p-2 text-black">
             <Menu size={28} />
           </button>
         </div>
 
         {/* Desktop Navigation */}
-        <nav className="hidden sm:flex flex-1 justify-center space-x-4 text-[16px]">
+        <nav className="flex flex-row justify-center gap-1  text-[16px] max-[1250px]:text-[14px] max-[1150px]:text-[12px] max-[1024px]:hidden">
           <Link
             href="/restaurantmanagement/ownerprofile"
             className={linkClasses("/restaurantmanagement/ownerprofile")}
@@ -117,7 +117,7 @@ export default function Navbar({ children }) {
         <div className="hidden sm:block ml-4">
           <button
             onClick={handleLoginLogout}
-            className="bg-orange-500 text-white px-4 py-2 rounded-lg hover:bg-orange-600 transition-colors"
+            className="bg-orange-500 text-white px-4 py-2 rounded-lg hover:bg-orange-600 transition-colors max-[1250px]:text-[14px] max-[1150px]:text-[12px] max-[1024px]:hidden"
           >
             Logout
           </button>
@@ -145,6 +145,13 @@ export default function Navbar({ children }) {
             {/* Links */}
             <div className="mt-10 flex flex-col space-y-2">
               <Link
+                href="/restaurantmanagement/ownerprofile"
+                className={linkClasses("/restaurantmanagement/ownerprofile")}
+                onClick={() => setMenuOpen(false)}
+              >
+                My Profile
+              </Link>
+              <Link
                 href="/restaurantmanagement/menumanagement"
                 className={linkClasses("/restaurantmanagement/menumanagement")}
                 onClick={() => setMenuOpen(false)}
@@ -152,11 +159,11 @@ export default function Navbar({ children }) {
                 Menu Management
               </Link>
               <Link
-                href="/restaurantmanagement/pricingpromo"
-                className={linkClasses("/restaurantmanagement/pricingpromo")}
+                href="/restaurantmanagement/ordermanagement"
+                className={linkClasses("/restaurantmanagement/ordermanagement")}
                 onClick={() => setMenuOpen(false)}
               >
-                Pricing & Promotions
+                Order Management
               </Link>
               <Link
                 href="/restaurantmanagement/openinghours"
@@ -166,15 +173,6 @@ export default function Navbar({ children }) {
                 Opening Hours Settings
               </Link>
               <Link
-                href="/restaurantmanagement/customerfeedback"
-                className={linkClasses(
-                  "/restaurantmanagement/customerfeedback"
-                )}
-                onClick={() => setMenuOpen(false)}
-              >
-                Customer Feedback
-              </Link>
-              <Link
                 href="/restaurantmanagement/restaurantpro"
                 className={linkClasses("/restaurantmanagement/restaurantpro")}
                 onClick={() => setMenuOpen(false)}
@@ -182,11 +180,13 @@ export default function Navbar({ children }) {
                 Restaurant Profile & Visuals
               </Link>
               <Link
-                href="/restaurantmanagement/ordermanagement"
-                className={linkClasses("/restaurantmanagement/ordermanagement")}
+                href="/restaurantmanagement/customerfeedback"
+                className={linkClasses(
+                  "/restaurantmanagement/customerfeedback"
+                )}
                 onClick={() => setMenuOpen(false)}
               >
-                Order Management
+                Customer Feedback
               </Link>
 
               {/* Login Button */}

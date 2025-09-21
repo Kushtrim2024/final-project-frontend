@@ -460,13 +460,13 @@ function RatingItem({ r, canEdit, onEdit, onDelete }) {
           <div className="ml-3 flex gap-2">
             <button
               onClick={onEdit}
-              className="rounded-md px-2 py-1 text-xs ring-1 ring-slate-200 hover:bg-slate-50"
+              className="rounded-md px-2 py-1 text-xs ring-1 ring-slate-200 hover:bg-slate-50 cursor-pointer"
             >
               Edit
             </button>
             <button
               onClick={onDelete}
-              className="rounded-md px-2 py-1 text-xs text-white bg-rose-600 hover:bg-rose-700"
+              className="rounded-md px-2 py-1 text-xs text-white bg-rose-600 hover:bg-rose-700 cursor-pointer"
             >
               Delete
             </button>
@@ -623,7 +623,7 @@ function RatingsSection({ restaurantId }) {
         <span className="text-slate-500 text-sm">({total} ratings)</span>
 
         {/* Star filter */}
-        <div className="ml-auto flex items-center gap-2 max-[500px]:hidden">
+        <div className="ml-auto flex items-center gap-2 max-[500px]:hidden ">
           <span className="text-sm text-slate-600 ">Filter by rating:</span>
           {[
             { v: 0, label: "All" },
@@ -636,7 +636,7 @@ function RatingsSection({ restaurantId }) {
             <button
               key={o.v}
               onClick={() => setRatingMin(o.v)}
-              className={`rounded-full px-2.5 py-1 text-xs ring-1 ${
+              className={`rounded-full px-2.5 py-1 text-xs cursor-pointer ring-1 ${
                 ratingMin === o.v
                   ? "bg-rose-600 text-white ring-rose-700"
                   : "bg-white text-slate-700 ring-slate-200 hover:bg-slate-50"
@@ -676,13 +676,13 @@ function RatingsSection({ restaurantId }) {
             Your rating
           </label>
         </div>
-        <div className="mt-2 inline-flex items-center gap-1">
+        <div className="mt-2 inline-flex items-center gap-1 ">
           {[1, 2, 3, 4, 5].map((n) => (
             <button
               type="button"
               key={n}
               onClick={() => setMyRating(n)}
-              className={`h-8 w-8 rounded-md ring-1 ${
+              className={`h-8 w-8 rounded-md ring-1 cursor-pointer ${
                 myRating >= n
                   ? "bg-yellow-100 ring-yellow-300"
                   : "bg-white ring-slate-200"
@@ -706,7 +706,7 @@ function RatingsSection({ restaurantId }) {
         <div className="mt-3 flex items-center gap-2">
           <button
             type="submit"
-            className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-700"
+            className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-700 cursor-pointer"
           >
             {isEditing ? "Update Review" : "Submit Review"}
           </button>
@@ -714,7 +714,7 @@ function RatingsSection({ restaurantId }) {
             <button
               type="button"
               onClick={handleDelete}
-              className="rounded-lg px-4 py-2 text-sm ring-1 ring-slate-200 hover:bg-slate-50"
+              className="rounded-lg px-4 py-2 text-sm ring-1 ring-slate-200 hover:bg-slate-50 cursor-pointer"
             >
               Delete Review
             </button>
@@ -772,7 +772,7 @@ function RatingsSection({ restaurantId }) {
             <button
               onClick={() => setRPage((p) => Math.max(1, p - 1))}
               disabled={rPage <= 1}
-              className={`rounded-lg px-3 py-2 text-sm ring-1 ${
+              className={`rounded-lg px-3 py-2 text-sm ring-1 cursor-pointer ${
                 rPage <= 1
                   ? "cursor-not-allowed bg-white/60 text-slate-400 ring-slate-200"
                   : "bg-white text-slate-800 ring-slate-200 hover:bg-slate-50"
@@ -792,7 +792,7 @@ function RatingsSection({ restaurantId }) {
                   <button
                     key={n}
                     onClick={() => setRPage(n)}
-                    className={`rounded-md px-3 py-2 text-sm ring-1 ${
+                    className={`rounded-md px-3 py-2 text-sm ring-1 cursor-pointer ${
                       n === rPage
                         ? "bg-rose-600 text-white ring-rose-700"
                         : "bg-white text-slate-800 ring-slate-200 hover:bg-slate-50"
@@ -808,7 +808,7 @@ function RatingsSection({ restaurantId }) {
             <button
               onClick={() => setRPage((p) => Math.min(rTotalPages, p + 1))}
               disabled={rPage >= rTotalPages}
-              className={`rounded-lg px-3 py-2 text-sm ring-1 ${
+              className={`rounded-lg px-3 py-2 text-sm ring-1 cursor-pointer ${
                 rPage >= rTotalPages
                   ? "cursor-not-allowed bg-white/60 text-slate-400 ring-slate-200"
                   : "bg-white text-slate-800 ring-slate-200 hover:bg-slate-50"
@@ -1274,26 +1274,26 @@ export default function RestaurantPage() {
         <section className="flex-1">
           {/* Category tabs + arrows */}
           <div className="-mt-10 rounded-2xl bg-white/90 shadow-lg ring-1 ring-black/5 backdrop-blur">
-            <div className="flex items-center gap-2 px-3 pt-3">
+            <div className="flex items-center gap-2 h-16 pl-2 pr-2 ">
               <button
                 onClick={() => {
                   const i = Math.max(0, categories.indexOf(activeCat) - 1);
                   setActiveCat(categories[i]);
                 }}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-slate-200 text-slate-700 hover:bg-slate-300"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-slate-200 text-slate-700 hover:bg-slate-300 cursor-pointer "
                 aria-label="Prev category"
               >
                 ‹
               </button>
 
-              <div className="no-scrollbar -mx-1 flex w-full gap-2 overflow-x-auto px-1">
+              <div className="no-scrollbar -mx-1 flex w-full gap-2 overflow-x-auto p-4 ">
                 {categories.map((c) => {
                   const active = c === activeCat;
                   return (
                     <button
                       key={c}
                       onClick={() => setActiveCat(c)}
-                      className={`whitespace-nowrap rounded-full px-3 py-1 text-sm font-medium ring-1 transition ${
+                      className={`whitespace-nowrap rounded-full px-3 py-1 text-sm font-medium ring-1 cursor-pointer transition ${
                         active
                           ? "bg-rose-600 text-white ring-rose-700"
                           : "bg-slate-100 text-slate-700 ring-slate-200 hover:bg-white"
@@ -1313,7 +1313,7 @@ export default function RestaurantPage() {
                   );
                   setActiveCat(categories[i]);
                 }}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-slate-200 text-slate-700 hover:bg-slate-300"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-slate-200 text-slate-700 hover:bg-slate-300 cursor-pointer"
                 aria-label="Next category"
               >
                 ›
@@ -1449,7 +1449,7 @@ export default function RestaurantPage() {
                           </span>
                           <button
                             type="button"
-                            className="text-white text-sm px-2 py-1 rounded-lg bg-rose-600 hover:bg-rose-700"
+                            className="text-white text-sm px-2 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 cursor-pointer"
                             onClick={(e) => {
                               e.preventDefault();
                               e.stopPropagation();
@@ -1559,7 +1559,7 @@ export default function RestaurantPage() {
         </section>
 
         {/* RIGHT: sticky cart (grouped by restaurant name) */}
-        <aside className="sticky top-4 h-[100dvh] w-full max-w-[360px] shrink-0 bg-[#12151a] px-5 pt-6 text-white max-[1024px]:h-full max-[1024px]:w-full rounded-xl">
+        <aside className="sticky top-4 h-[90dvh] w-full max-w-[360px] shrink-0 bg-[#12151a] mt-4 px-5 pt-6 text-white max-[1024px]:h-full max-[1024px]:w-full rounded-xl">
           <div className="rounded-xl bg-[#1b2027] p-4 ring-1 ring-white/5">
             <div className="mb-3 flex items-center justify-between gap-2">
               <div className="inline-flex items-center gap-2">
@@ -1650,7 +1650,7 @@ export default function RestaurantPage() {
                                   </div>
                                 </div>
                                 <button
-                                  className="text-[11px] text-rose-400 hover:text-rose-300"
+                                  className="text-[11px] text-rose-400 hover:text-rose-300 cursor-pointer"
                                   onClick={() => removeItem(absoluteIndex)}
                                 >
                                   Remove
@@ -1720,7 +1720,7 @@ export default function RestaurantPage() {
             </div>
 
             <button
-              className="mt-4 w-full rounded-lg bg-rose-600 py-3 font-semibold tracking-wide hover:bg-rose-700 disabled:opacity-60"
+              className="mt-4 w-full rounded-lg bg-rose-600 py-3 font-semibold tracking-wide hover:bg-rose-700 disabled:opacity-60 cursor-pointer"
               disabled={cartItems.length === 0}
               onClick={() => {
                 // Read the freshest auth (don’t trust possibly stale state)
@@ -1750,7 +1750,7 @@ export default function RestaurantPage() {
           onClick={() => setModalOpen(false)}
         >
           <div
-            className="w-full sm:max-w-2xl rounded-t-2xl sm:rounded-2xl bg-white shadow-2xl ring-1 ring-black/10 overflow-hidden"
+            className="w-full sm:max-w-2xl rounded-t-2xl sm:rounded-2xl bg-white shadow-2xl ring-1 ring-black/10 overflow-hidden "
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
@@ -1771,7 +1771,7 @@ export default function RestaurantPage() {
                 }}
               />
               <button
-                className="absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white"
+                className="absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white cursor-pointer"
                 onClick={() => setModalOpen(false)}
                 aria-label="Close"
               >
@@ -1892,14 +1892,14 @@ export default function RestaurantPage() {
                   </span>
                   <div className="inline-flex items-center rounded-lg border border-slate-200">
                     <button
-                      className="h-9 w-9 text-lg"
+                      className="h-9 w-9 text-lg cursor-pointer"
                       onClick={() => setQty((q) => Math.max(1, q - 1))}
                     >
                       –
                     </button>
                     <div className="w-10 text-center">{qty}</div>
                     <button
-                      className="h-9 w-9 text-lg"
+                      className="h-9 w-9 text-lg cursor-pointer"
                       onClick={() => setQty((q) => Math.min(99, q + 1))}
                     >
                       +
@@ -1924,13 +1924,13 @@ export default function RestaurantPage() {
               {/* Actions */}
               <div className="mt-5 flex items-center justify-end gap-2">
                 <button
-                  className="rounded-lg px-4 py-2 text-sm ring-1 ring-slate-200 hover:bg-slate-50"
+                  className="rounded-lg px-4 py-2 text-sm ring-1 ring-slate-200 hover:bg-slate-50 cursor-pointer"
                   onClick={() => setModalOpen(false)}
                 >
                   Cancel
                 </button>
                 <button
-                  className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-700"
+                  className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-700 cursor-pointer"
                   onClick={addConfiguredToCart}
                 >
                   Add to Cart

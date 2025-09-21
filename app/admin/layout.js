@@ -49,7 +49,7 @@ export default function AdminLayout({ children }) {
         </div>
       </div>
 
-      <main className="flex-1 w-full p-8 bg-white">{children}</main>
+      <main className="flex-1 w-full p-4 bg-white">{children}</main>
     </div>
   );
 }

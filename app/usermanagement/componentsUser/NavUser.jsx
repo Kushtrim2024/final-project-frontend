@@ -27,7 +27,7 @@ function NavUser() {
   ];
 
   return (
-    <div className="w-full">
+    <div className=" relative  h-20 w-[80%]">
       {/* Navbar */}
       <nav className="relative flex items-center justify-center px-4 py-2">
         {/* Desktop Menu */}
@@ -49,7 +49,7 @@ function NavUser() {
 
         {/* Mobile Hamburger */}
         <button
-          className="absolute min-[1100px]:hidden right-0 p-2 text-black"
+          className="absolute min-[1100px]:hidden top-4 right-0 p-2 text-black"
           onClick={() => setIsOpen(true)}
         >
           <Menu size={28} />

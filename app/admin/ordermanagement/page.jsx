@@ -429,8 +429,8 @@ export default function OrderManagementPage() {
 
       {/* Modal */}
       {selectedOrder && modalType && (
-        <div className="fixed inset-0 bg-black bg-opacity-40 flex justify-center items-center z-50">
-          <div className="bg-white rounded-lg shadow-lg w-full max-w-md p-6">
+        <div className="fixed top-30 inset-0 bg-black/60 flex justify-center items-start z-50 overflow-auto pt-10">
+          <div className="bg-white rounded-lg shadow-lg w-full max-w-md p-6 m-4">
             {modalType === "update" && (
               <>
                 <h2 className="text-xl font-bold mb-4 text-gray-900">

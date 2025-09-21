@@ -117,7 +117,7 @@ export default function OpeningHoursPage() {
         {openingHours.map((dayObj, index) => (
           <div
             key={dayObj.day}
-            className="flex items-center gap-4 p-2 border rounded"
+            className="flex flex-row items-center gap-4 p-2 border rounded max-[800px]:flex-col"
           >
             <span className="w-24 font-medium capitalize">{dayObj.day}</span>
             <label className="flex items-center gap-2">
