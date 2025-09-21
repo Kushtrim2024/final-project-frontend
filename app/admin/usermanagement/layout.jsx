@@ -14,13 +14,13 @@ export default function UMLayout({ children }) {
   const active = (href) => pathname === href || pathname.startsWith(href + "/");
 
   return (
-    <div className="w-full">
-      <div className="mb-4 flex gap-2 flex-wrap">
+    <div className="w-full ">
+      <div className="mb-4 flex justify-center gap-2 flex-wrap">
         {TABS.map((t) => (
           <Link
             key={t.href}
             href={t.href}
-            className={`px-3 py-2 rounded-md text-sm font-medium transition
+            className={`px-3 py-2 rounded-md text-sm font-medium transition 
               ${
                 active(t.href)
                   ? "bg-gray-900 text-white"

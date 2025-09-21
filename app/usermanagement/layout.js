@@ -41,25 +41,25 @@ export default function UserLayout({ children }) {
 
   return (
     <div className="sticky top-0 flex flex-col bg-orange-200/25 w-full shadow-md">
-      <div className="flex flex-row items-center justify-around w-full h-30 px-4 shadow-md">
+      <div className="flex flex-row items-center justify-around w-full h-30 px-4 shadow-md ">
         {/* Logo */}
-        <Link href="/">
+        <Link href="/" className=" w-24 ">
           <Image
             src="/logo.png"
             alt="Logo"
-            className="w-20 h-20 md:w-20 md:h-20"
-            width={80}
-            height={80}
+            className="w-20 h-20 max-[500px]:w-16 max-[500px]:h-16"
+            width={180}
+            height={180}
           />
         </Link>
 
         <NavUser />
 
         {/* Logout button right */}
-        <nav>
+        <nav className="w-24  flex justify-end">
           <button
             onClick={handleLogout}
-            className="bg-orange-500 text-white px-4 py-2 rounded-md hover:shadow-md hover:mb-2"
+            className=" bg-orange-500 text-white px-4 py-2 rounded-md hover:shadow-md hover:mb-2"
           >
             Logout
           </button>

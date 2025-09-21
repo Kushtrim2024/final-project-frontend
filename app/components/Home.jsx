@@ -650,7 +650,7 @@ export default function Home() {
 
           <button
             onClick={openLocaleModal}
-            className="inline-flex items-center gap-2 rounded-r-2xl bg-black/40 px-3 py-1 "
+            className="inline-flex items-center gap-2 rounded-r-2xl bg-black/40 px-3 py-1 cursor-pointer"
             title="Choose your locale"
           >
             <span className="font-semibold">
@@ -689,7 +689,7 @@ export default function Home() {
             <div className="mt-4 space-y-3">
               <button
                 onClick={useMyLocation}
-                className="w-full rounded-lg bg-rose-600 px-4 py-2 text-white hover:bg-rose-700"
+                className="w-full rounded-lg bg-rose-600 px-4 py-2 text-white hover:bg-rose-700 cursor-pointer"
               >
                 Use my location
               </button>
@@ -709,7 +709,7 @@ export default function Home() {
                   />
                   <button
                     onClick={applyPostcode}
-                    className="rounded-md bg-gray-900 px-3 py-2 text-sm text-white hover:bg-black"
+                    className="rounded-md bg-gray-900 px-3 py-2 text-sm text-white hover:bg-black cursor-pointer"
                   >
                     Apply
                   </button>
@@ -717,7 +717,7 @@ export default function Home() {
               </div>
 
               {/* Shortcut example (Downtown removed) */}
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-2 ">
                 {[
                   {
                     label: "16929",
@@ -740,7 +740,7 @@ export default function Home() {
                       writeLocale(v);
                       closeLocaleModal();
                     }}
-                    className="rounded-full border border-gray-300 px-3 py-1 text-sm hover:bg-gray-50"
+                    className="rounded-full border border-gray-300 px-3 py-1 text-sm hover:bg-gray-50 cursor-pointer"
                   >
                     {x.label}
                   </button>
@@ -750,7 +750,7 @@ export default function Home() {
               <div className="text-right">
                 <button
                   onClick={closeLocaleModal}
-                  className="text-sm text-gray-600 hover:text-gray-800"
+                  className="text-sm text-gray-600 hover:text-gray-800 cursor-pointer"
                 >
                   Close
                 </button>
@@ -829,7 +829,7 @@ export default function Home() {
                   setPage(1);
                   setPageSize(Number(e.target.value));
                 }}
-                className="rounded-md bg-white/90 px-2 py-1 text-sm text-gray-800"
+                className="rounded-md bg-white/90 px-2 py-1 text-sm text-gray-800 cursor-pointer"
               >
                 {PAGE_SIZE_OPTIONS.map((n) => (
                   <option key={n} value={n}>
@@ -1074,7 +1074,7 @@ export default function Home() {
                                   </div>
                                 </div>
                                 <button
-                                  className="text-[11px] text-rose-400 hover:text-rose-300"
+                                  className="text-[11px] text-rose-400 hover:text-rose-300 cursor-pointer"
                                   onClick={() => removeItem(absoluteIndex)}
                                 >
                                   Remove
@@ -1084,7 +1084,7 @@ export default function Home() {
                               <div className="mt-2 flex items-center justify-between">
                                 <div className="inline-flex items-center rounded-md bg-black/40">
                                   <button
-                                    className="h-7 w-7"
+                                    className="h-7 w-7 cursor-pointer"
                                     onClick={() => changeQty(absoluteIndex, -1)}
                                     aria-label="Decrease"
                                   >
@@ -1094,7 +1094,7 @@ export default function Home() {
                                     {it.qty}
                                   </div>
                                   <button
-                                    className="h-7 w-7"
+                                    className="h-7 w-7 cursor-pointer"
                                     onClick={() => changeQty(absoluteIndex, +1)}
                                     aria-label="Increase"
                                   >
@@ -1144,7 +1144,7 @@ export default function Home() {
             </div>
 
             <button
-              className="mt-4 w-full rounded-lg bg-rose-600 py-3 font-semibold tracking-wide hover:bg-rose-700 disabled:opacity-60"
+              className="mt-4 w-full rounded-lg bg-rose-600 py-3 font-semibold tracking-wide hover:bg-rose-700 disabled:opacity-60 cursor-pointer"
               disabled={cartItems.length === 0}
               onClick={() => {
                 const token = getTokenFromStorage();
