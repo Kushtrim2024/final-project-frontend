@@ -292,140 +292,50 @@ export default function Home() {
   }, []);
 
   // ---- fetcher with FRONTEND FALLBACKS ----
-  useEffect(() => {
+    useEffect(() => {
     const controller = new AbortController();
 
-    async function fetchAll() {
-      const res = await fetch(`${API_BASEx}/restaurants`, {
-        signal: controller.signal,
-        cache: "no-store",
+  async function fetchData() {
+    setLoading(true);
+    setErr(null);
+    try {
+      // Prepare parameters to send to the API
+      const params = new URLSearchParams({
+        page: page.toString(),
+        limit: pageSize.toString(),
+        q: q || "",
+        cat: cat || ""
       });
-      if (!res.ok) throw new Error(`Request failed (${res.status})`);
-      return res.json();
-    }
 
-    async function fetchPrimaryByLocale() {
-      // 1) location endpoint
-      if (
-        localeInfo?.type === "coords" &&
-        localeInfo?.payload?.lat != null &&
-        localeInfo?.payload?.lng != null
-      ) {
-        const { lat, lng } = localeInfo.payload;
-        const url = new URL(`${API_BASEx}/restaurants/location`);
-        url.searchParams.set("lat", String(lat));
-        url.searchParams.set("lng", String(lng));
-        const res = await fetch(url.toString(), {
-          signal: controller.signal,
-          cache: "no-store",
-        });
-        if (!res.ok) throw new Error(`Request failed (${res.status})`);
-        const json = await res.json();
-        return { json, endpoint: "location" };
+      // Add location or Postcode if selected
+      if (localeInfo?.type === "coords" && localeInfo.payload) {
+        params.append("lat", localeInfo.payload.lat);
+        params.append("lng", localeInfo.payload.lng);
+      } else if (localeInfo?.type === "postcode" && localeInfo.payload) {
+        params.append("postcode", localeInfo.payload.postcode);
       }
 
-      // 2) postcode endpoint
-      if (localeInfo?.type === "postcode" && localeInfo?.payload?.postcode) {
-        const url = new URL(`${API_BASEx}/restaurants/postcode`);
-        url.searchParams.set("postcode", String(localeInfo.payload.postcode));
-        const res = await fetch(url.toString(), {
-          signal: controller.signal,
-          cache: "no-store",
-        });
-        if (!res.ok) throw new Error(`Request failed (${res.status})`);
-        const json = await res.json();
-        return { json, endpoint: "postcode" };
-      }
+      // Send a single clean request to the server
+      const res = await fetch(`${API_BASEx}/restaurants?${params.toString()}`);
+      const result = await res.json();
 
-      // 3) default: all
-      const json = await fetchAll();
-      return { json, endpoint: "all" };
+      if (!res.ok) throw new Error(result.message || "Data could not be fetched");
+
+      
+      const items = normalizeRestaurants(result.data || []);
+      
+      setPageItems(items);
+      setTotalCount(result.total || 0);
+      setServerMode(true); // Now filtering is done on the server
+
+    } catch (e) {
+      console.error("Loading Error:", e);
+      setErr(e.message);
+    } finally {
+      setLoading(false);
     }
-
-    async function fetchData() {
-      setLoading(true);
-      setErr(null);
-      try {
-        // Primary fetch based on locale selection
-        let { json } = await fetchPrimaryByLocale();
-
-        // Normalize for client-side pagination
-        let items;
-        if (Array.isArray(json)) {
-          items = normalizeRestaurants(json);
-        } else if (json && Array.isArray(json.data)) {
-          items = normalizeRestaurants(json.data);
-          setServerMode(true);
-        } else {
-          items = [];
-        }
-
-        // FRONTEND FALLBACKS
-        if (localeInfo?.type === "postcode") {
-          const pc = String(localeInfo?.payload?.postcode || "").trim();
-          if (Array.isArray(items) && items.length === 0 && pc) {
-            // a) match by address.postalCode
-            const all = await fetchAll();
-            const allNorm = normalizeRestaurants(Array.isArray(all) ? all : []);
-            let local = filterByPostcodeFrontend(allNorm, pc);
-
-            // b) forward-geocode PLZ and filter by radius if still empty
-            if (!local.length) {
-              const center = await forwardGeocodePostcode(pc).catch(() => null);
-              if (center) {
-                local = filterByCoordsFrontend(
-                  allNorm,
-                  center.lat,
-                  center.lng,
-                  25
-                );
-              }
-            }
-            items = local;
-          }
-        }
-
-        if (localeInfo?.type === "coords") {
-          const { lat, lng } = localeInfo?.payload || {};
-          if (
-            Array.isArray(items) &&
-            items.length === 0 &&
-            lat != null &&
-            lng != null
-          ) {
-            // Pull all and fallback to radius filter
-            const all = await fetchAll();
-            const allNorm = normalizeRestaurants(Array.isArray(all) ? all : []);
-            items = filterByCoordsFrontend(allNorm, lat, lng, 25);
-          }
-        }
-
-        // Search + category filtering
-        if (q) items = filterAndSort(items, q);
-        if (cat) items = filterByCategory(items, cat);
-
-        // Pagination
-        setServerMode(false);
-        setAllItems(items);
-        setTotalCount(items.length);
-
-        const start = (page - 1) * pageSize;
-        const end = start + pageSize;
-        const sliced = items.slice(start, end);
-        setPageItems(sliced);
-        setLastBatchSize(sliced.length);
-      } catch (e) {
-        const msg = (e && (e.name || "")).toString().toLowerCase();
-        const text = (e && (e.message || "")).toString().toLowerCase();
-        const isAbort = msg.includes("abort") || text.includes("abort");
-        if (isAbort) return;
-        setErr(e.message || "Unknown error");
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    fetchData();
+  }
+     fetchData();
     return () => controller.abort();
   }, [page, pageSize, q, cat, localeInfo]);
 
