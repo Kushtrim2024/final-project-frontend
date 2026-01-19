@@ -300,36 +300,51 @@ export default function Home() {
       setErr(null);
 
       try {
-        const params = new URLSearchParams({
-          page: String(page),
-          limit: String(pageSize),
-          q: q || "",
-          cat: cat || "",
-        });
+        const url = new URL(`${API_BASEx}/restaurants`);
 
-        if (localeInfo?.type === "coords" && localeInfo.payload) {
-          params.append("lat", String(localeInfo.payload.lat));
-          params.append("lng", String(localeInfo.payload.lng));
-        } else if (localeInfo?.type === "postcode" && localeInfo.payload) {
-          params.append("postcode", String(localeInfo.payload.postcode));
+        // pagination
+        url.searchParams.set("page", page);
+        url.searchParams.set("limit", pageSize);
+
+        // filters
+        if (q) url.searchParams.set("q", q);
+        if (cat) url.searchParams.set("cat", cat);
+
+        // locale
+        if (localeInfo?.type === "postcode") {
+          url.searchParams.set("postcode", localeInfo.payload.postcode);
         }
 
-        const res = await fetch(
-          `${API_BASEx}/restaurants?${params.toString()}`,
-          { signal: controller.signal },
-        );
+        if (localeInfo?.type === "coords") {
+          url.searchParams.set("lat", localeInfo.payload.lat);
+          url.searchParams.set("lng", localeInfo.payload.lng);
+        }
 
-        const result = await res.json();
-        if (!res.ok) throw new Error(result.message);
+        const res = await fetch(url.toString(), {
+          signal: controller.signal,
+          cache: "no-store",
+        });
 
-        const items = normalizeRestaurants(result.data || []);
-        setPageItems(items);
-        setTotalCount(result.total || 0);
+        if (!res.ok) {
+          throw new Error(`Request failed (${res.status})`);
+        }
+
+        const json = await res.json();
+
+        /*
+        Backend response beklenen format:
+        {
+          data: Restaurant[],
+          total: number
+        }
+      */
+
+        setPageItems(normalizeRestaurants(json.data));
+        setTotalCount(json.total);
         setServerMode(true);
       } catch (e) {
         if (e.name !== "AbortError") {
-          console.error(e);
-          setErr(e.message);
+          setErr(e.message || "Unknown error");
         }
       } finally {
         setLoading(false);
