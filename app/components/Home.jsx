@@ -92,7 +92,7 @@ function writeLocale(val) {
   try {
     localStorage.setItem(
       LOCALE_KEY,
-      JSON.stringify(val || { type: "none", label: "Choose your locale" })
+      JSON.stringify(val || { type: "none", label: "Choose your locale" }),
     );
   } catch {}
 }
@@ -292,50 +292,66 @@ export default function Home() {
   }, []);
 
   // ---- fetcher with FRONTEND FALLBACKS ----
-    useEffect(() => {
+  useEffect(() => {
     const controller = new AbortController();
 
-  async function fetchData() {
-    setLoading(true);
-    setErr(null);
-    try {
-      // Prepare parameters to send to the API
-      const params = new URLSearchParams({
-        page: page.toString(),
-        limit: pageSize.toString(),
-        q: q || "",
-        cat: cat || ""
-      });
+    async function fetchData() {
+      setLoading(true);
+      setErr(null);
 
-      // Add location or Postcode if selected
-      if (localeInfo?.type === "coords" && localeInfo.payload) {
-        params.append("lat", localeInfo.payload.lat);
-        params.append("lng", localeInfo.payload.lng);
-      } else if (localeInfo?.type === "postcode" && localeInfo.payload) {
-        params.append("postcode", localeInfo.payload.postcode);
+      try {
+        const url = new URL(`${API_BASEx}/restaurants`);
+
+        // pagination
+        url.searchParams.set("page", page);
+        url.searchParams.set("limit", pageSize);
+
+        // filters
+        if (q) url.searchParams.set("q", q);
+        if (cat) url.searchParams.set("cat", cat);
+
+        // locale
+        if (localeInfo?.type === "postcode") {
+          url.searchParams.set("postcode", localeInfo.payload.postcode);
+        }
+
+        if (localeInfo?.type === "coords") {
+          url.searchParams.set("lat", localeInfo.payload.lat);
+          url.searchParams.set("lng", localeInfo.payload.lng);
+        }
+
+        const res = await fetch(url.toString(), {
+          signal: controller.signal,
+          cache: "no-store",
+        });
+
+        if (!res.ok) {
+          throw new Error(`Request failed (${res.status})`);
+        }
+
+        const json = await res.json();
+
+        /*
+        Backend response beklenen format:
+        {
+          data: Restaurant[],
+          total: number
+        }
+      */
+
+        setPageItems(normalizeRestaurants(json.data));
+        setTotalCount(json.total);
+        setServerMode(true);
+      } catch (e) {
+        if (e.name !== "AbortError") {
+          setErr(e.message || "Unknown error");
+        }
+      } finally {
+        setLoading(false);
       }
-
-      // Send a single clean request to the server
-      const res = await fetch(`${API_BASEx}/restaurants?${params.toString()}`);
-      const result = await res.json();
-
-      if (!res.ok) throw new Error(result.message || "Data could not be fetched");
-
-      
-      const items = normalizeRestaurants(result.data || []);
-      
-      setPageItems(items);
-      setTotalCount(result.total || 0);
-      setServerMode(true); // Now filtering is done on the server
-
-    } catch (e) {
-      console.error("Loading Error:", e);
-      setErr(e.message);
-    } finally {
-      setLoading(false);
     }
-  }
-     fetchData();
+
+    fetchData();
     return () => controller.abort();
   }, [page, pageSize, q, cat, localeInfo]);
 
@@ -419,7 +435,7 @@ export default function Home() {
     setCartItems((prev) => {
       if (!Array.isArray(prev)) return prev;
       const next = prev.map((x, i) =>
-        i === idx ? { ...x, qty: Math.max(1, Number(x.qty || 1) + delta) } : x
+        i === idx ? { ...x, qty: Math.max(1, Number(x.qty || 1) + delta) } : x,
       );
       writeCart(next);
       return [...next];
@@ -479,7 +495,7 @@ export default function Home() {
             });
           },
           (err) => reject(err),
-          { enableHighAccuracy: true, maximumAge: 300000, timeout: 10000 }
+          { enableHighAccuracy: true, maximumAge: 300000, timeout: 10000 },
         );
       });
 
@@ -725,8 +741,8 @@ export default function Home() {
               {loading
                 ? "Loading…"
                 : totalCount != null
-                ? `Total: ${totalCount}`
-                : ""}
+                  ? `Total: ${totalCount}`
+                  : ""}
             </div>
 
             <div className="flex items-center gap-2">
@@ -792,7 +808,7 @@ export default function Home() {
                       e.currentTarget.src = seededRestaurantImage(
                         `${r.seed}-alt`,
                         1400,
-                        900
+                        900,
                       );
                     }}
                   />
@@ -850,7 +866,7 @@ export default function Home() {
                       >
                         {n}
                       </button>
-                    )
+                    ),
                   )}
                 </div>
               )}
@@ -951,10 +967,10 @@ export default function Home() {
                                 e.currentTarget.onerror = null;
                                 e.currentTarget.src = seededRestaurantImage(
                                   `${String(
-                                    it.restaurantId || it.id || it.name
+                                    it.restaurantId || it.id || it.name,
                                   )}-alt`,
                                   100,
-                                  100
+                                  100,
                                 );
                               }}
                             />
@@ -1026,7 +1042,7 @@ export default function Home() {
                         );
                       })}
                     </div>
-                  )
+                  ),
                 )}
               </div>
             )}
@@ -1061,7 +1077,7 @@ export default function Home() {
                 const role = getRoleFromStorage();
                 if (!token || role !== "user") {
                   alert(
-                    "Only customers with the 'user' role can use checkout."
+                    "Only customers with the 'user' role can use checkout.",
                   );
                   return;
                 }
@@ -1166,7 +1182,7 @@ function slugify(text) {
 function extractCategories(x) {
   const arr = Array.isArray(x?.categories) ? x.categories : [];
   return Array.from(
-    new Set(arr.map((s) => (s || "").toString().trim()).filter(Boolean))
+    new Set(arr.map((s) => (s || "").toString().trim()).filter(Boolean)),
   );
 }
 
@@ -1179,7 +1195,7 @@ function pickBestImage(x, seed) {
     Array.isArray(x?.gallery) ? x.gallery[0] : null,
   ].filter(Boolean);
   const found = candidates.find(
-    (u) => typeof u === "string" && /^https?:\/\//i.test(u)
+    (u) => typeof u === "string" && /^https?:\/\//i.test(u),
   );
   return found || seededRestaurantImage(seed, 1400, 900);
 }
@@ -1229,17 +1245,17 @@ function normalizeRestaurants(arr) {
     const dishesArr = Array.isArray(x.meals)
       ? x.meals
       : Array.isArray(x.menuItems)
-      ? x.menuItems
-      : Array.isArray(x.dishes)
-      ? x.dishes
-      : [];
+        ? x.menuItems
+        : Array.isArray(x.dishes)
+          ? x.dishes
+          : [];
 
     const dishesText = dishesArr
       .map(
         (d) =>
           `${d?.name || d?.title || ""} ${d?.category || ""} ${
             d?.description || ""
-          }`
+          }`,
       )
       .join(" ");
 
@@ -1298,7 +1314,7 @@ function filterByCategory(items, catFromQuery) {
   return items.filter((r) => {
     const slugs = Array.isArray(r.categorySlugs) ? r.categorySlugs : [];
     return slugs.some(
-      (s) => s === target || s.includes(target) || target.includes(s)
+      (s) => s === target || s.includes(target) || target.includes(s),
     );
   });
 }
